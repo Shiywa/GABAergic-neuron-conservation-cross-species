@@ -86,3 +86,27 @@ Metascape_test <-function(markers.tab,Top_clu = 10)  {
   print(p)
   dev.off()
 }
+
+
+Metascape_test2 <-function(markers, id)  {
+  require(dplyr)
+  require(org.Hs.eg.db)
+  require(clusterProfiler)
+  gene <- markers
+  # convert gene symbol to gene id (enrichment function only takes gene id)
+  mygene<- AnnotationDbi::select(org.Hs.eg.db,columns=c("SYMBOL","ENTREZID"),keytype="SYMBOL",keys=gene)
+  mygene<-mygene$ENTREZID
+  # GO term enrichment analysis  
+  ego<-enrichGO(OrgDb = "org.Hs.eg.db",gene=mygene,ont="BP",pvalueCutoff=0.05,readable=TRUE,minGSSize = 10)
+  ego <- simplify(ego, cutoff=0.7, by="p.adjust", select_fun=min)
+  #    
+  # KEGG enrichment analysis  
+  ekk<-enrichKEGG(gene=mygene,organism = "hsa",pvalueCutoff=0.05)
+  ekk <- setReadable(ekk,org.Hs.eg.db,keyType = "ENTREZID")
+  #    write.table(ekk,paste(paste("KEGG-enrich_cluster_",i,sep=""),"txt",sep="."),sep="\t",row.names = F,quote = F)
+  ego.all <- ego@result
+  ekk.all <- ekk@result
+  all.enrichment <- rbind(ego.all,ekk.all)
+  all.enrichment$group = id
+  return(all.enrichment)
+}

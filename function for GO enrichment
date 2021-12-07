@@ -1,0 +1,88 @@
+Metascape_test <-function(markers.tab,Top_clu = 10)  {
+  require(dplyr)
+  if(exists(levels(markers.tab$cluster))){
+    le <- levels(markers.tab$cluster)
+  }else{ le <- unique(markers.tab$cluster)}
+  ego.all <- NA
+  ekk.all <- NA
+  for (i in le) {
+    gene<- markers.tab$gene[which(markers.tab$cluster == i)]
+    # convert gene symbol to gene id (enrichment function only takes gene id)
+    mygene<-select(org.Hs.eg.db,columns=c("SYMBOL","ENTREZID"),keytype="SYMBOL",keys=gene)
+    mygene<-mygene$ENTREZID
+    # GO term enrichment analysis  
+    ego<-enrichGO(OrgDb = "org.Hs.eg.db",gene=mygene,ont="BP",pvalueCutoff=0.05,readable=TRUE)
+    ego <- simplify(ego, cutoff=0.7, by="p.adjust", select_fun=min)
+    #    
+    ego@result$cluster <- i
+    ego.all <- rbind(ego.all,ego@result) 
+    
+    # KEGG enrichment analysis  
+    ekk<-enrichKEGG(gene=mygene,organism = "hsa",pvalueCutoff=0.05)
+    ekk <- setReadable(ekk,org.Hs.eg.db,keyType = "ENTREZID")
+    #    write.table(ekk,paste(paste("KEGG-enrich_cluster_",i,sep=""),"txt",sep="."),sep="\t",row.names = F,quote = F)
+    ekk@result$cluster<- i
+    ekk.all <- rbind(ekk.all,ekk@result) 
+  }
+  ego.all <- ego.all[-1,]
+  ekk.all <- ekk.all[-1,]
+  ego.all$enrichGroup <- "GO"
+  ekk.all$enrichGroup <- "KEGG"
+  all.enrichment <- rbind(ego.all,ekk.all)
+  write.table(all.enrichment,"All_enrichment.txt",sep = "\t",row.names = F,quote = F)
+  GO.da <- all.enrichment[which(all.enrichment$enrichGroup == "GO"),]
+  KEGG.da <- all.enrichment[which(all.enrichment$enrichGroup == "KEGG"),]
+  
+  GO.plot <- GO.da %>% group_by(cluster) %>% top_n(Top_clu,wt = -p.adjust)
+  GO.plot <- GO.da[which(GO.da$Description %in% unique(GO.plot$Description)),]
+  
+  KEGG.plot <- KEGG.da %>% group_by(cluster) %>% top_n(Top_clu,wt = -p.adjust)
+  KEGG.plot <- KEGG.da[which(KEGG.da$Description %in% unique(KEGG.plot$Description)),]
+  
+  matr <- matrix(0,ncol = length(unique(GO.plot$cluster)),nrow = length(unique(GO.plot$Description)),
+                 dimnames = list(unique(GO.plot$Description),unique(GO.plot$cluster)))
+  for (i in rownames(matr)) {
+    for (j in colnames(matr)) {
+      if(length(intersect(which(GO.plot$Description == i),which(GO.plot$cluster == j))) == 1){
+        matr[i,j] <- GO.plot$p.adjust[intersect(which(GO.plot$Description == i),which(GO.plot$cluster == j))]
+      }
+    }
+  }
+  ComplexHeatmap::Heatmap(matr)
+  sampleTree = hclust(dist(matr), method = "average")
+  row_levels <- sampleTree$labels[sampleTree$order]
+  sampleTree = hclust(dist(t(matr)), method = "average")
+  col_levels <- sampleTree$labels[sampleTree$order]
+  GO.plot$Description <- factor(GO.plot$Description,levels = row_levels)
+  GO.plot$cluster <- factor(GO.plot$cluster,levels = col_levels)
+  p <- ggplot(GO.plot,aes( x = cluster, y = Description,color = -log10(p.adjust), size = Count))+
+    geom_point()+scale_color_gradient(low="blue",high="red") +
+    theme_bw() +scale_size(range=c(2, 8)) +
+    labs(title = "Different Clusters GO terms enrichment")+theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+  pdf("GO.pdf",height = dim(matr)[1]/5+2,width = dim(matr)[2]/2.5+7)
+  print(p)
+  dev.off()
+  
+  matr <- matrix(0,ncol = length(unique(KEGG.plot$cluster)),nrow = length(unique(KEGG.plot$Description)),
+                 dimnames = list(unique(KEGG.plot$Description),unique(KEGG.plot$cluster)))
+  for (i in rownames(matr)) {
+    for (j in colnames(matr)) {
+      if(length(intersect(which(KEGG.plot$Description == i),which(KEGG.plot$cluster == j))) == 1){
+        matr[i,j] <- KEGG.plot$p.adjust[intersect(which(KEGG.plot$Description == i),which(KEGG.plot$cluster == j))]
+      }
+    }
+  }
+  sampleTree = hclust(dist(matr), method = "average")
+  row_levels <- sampleTree$labels[sampleTree$order]
+  sampleTree = hclust(dist(t(matr)), method = "average")
+  col_levels <- sampleTree$labels[sampleTree$order]
+  KEGG.plot$Description <- factor(KEGG.plot$Description,levels = row_levels)
+  KEGG.plot$cluster <- factor(KEGG.plot$cluster,levels = col_levels)
+  p <- ggplot(KEGG.plot,aes( x = cluster, y = Description,color = -log10(p.adjust), size = Count))+
+    geom_point()+scale_color_gradient(low="blue",high="red") +
+    theme_bw() +scale_size(range=c(2, 8)) +
+    labs(title = "Different Clusters KEGG pathway enrichment")+theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+  pdf("KEGG.pdf",height = dim(matr)[1]/5+2,width = dim(matr)[2]/2.5+7)
+  print(p)
+  dev.off()
+}

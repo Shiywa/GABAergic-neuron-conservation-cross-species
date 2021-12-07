@@ -81,21 +81,21 @@ all.da$group <- "Not assigned"
 all.da$group[which(all.da$anno_sub2 %in% c("Inc SST CALB1","Inc SST","Inc SST NMU","Inc SST B3GAT2",
                                            "Inc SST NPY","Inc SST RUNX1 (pig)","Inc SST KLF5 (pig)",
                                            "Inc Sst Lhx6 (mouse)","Inc SST BCAS1 (macaque)","Inc SST GRAMD2B (macaque)",
-                                           "Inc SST HMGN4 (pig)"))] <- "Inc SST"
+                                           "Inc SST HMGN4 (pig)","Inc TRPC4 SULF1 (pig)","Inc SST (macaque)"))] <- "Inc SST"
 all.da$group[which(all.da$anno_sub2 %in% c("Inc PVALB SULF1","Inc ECM1 ETS1","Inc PVALB SCUBE3",
                                            "Inc unknown (macaque)","Inc PVALB PLCL1 C1QL1 (macaque)",
                                            "Inc Pvalb Nek7 (mouse)","Inc PVALB GLI3 (macaque)",
                                            "Inc PVALB SULF1 (pig)","Inc PVALB ADAMTS5 (pig)",
                                            "Inc PVALB C1QL1 (macaque)"))] <- "Inc PVALB"
-all.da$group[which(all.da$anno_sub2 %in% c("Inc LAMP5 CA1","Inc LAMP5 FBN2 (macaque)","Inc Lamp5 Tnnt1 (mouse)",
-                                           "Inc LAMP5 GFRAL (pig)"))] <- "Inc LAMP5"
+all.da$group[which(all.da$anno_sub2 %in% c("Inc LAMP5 CA1","Inc LAMP5 TRPC3","Inc LAMP5 FBN2 (macaque)",
+                                           "Inc Lamp5 Tnnt1 (mouse)","Inc LAMP5 GFRAL (pig)"))] <- "Inc LAMP5"
 all.da$group[which(all.da$anno_sub2 %in% c("Inc VIP","Inc VIP ADAMTSL1","Inc VIP CHRM2","Inc VIP HS3ST3A1",              
                                            "Inc VIP OPRM1","Inc ADARB2 SCML4","Inc VIP ADARB2 (macaque)",
                                            "Inc VIP TAC3 (macaque)","Inc VIP NR2F2 (macaque)",
-                                           "Inc Vip Calb2 (mouse)"))] <- "Inc VIP"
-all.da$group[which(all.da$anno_sub2 %in% c("Inc ADARB2 GABRG1","Inc SST NMBR","Inc ADARB2 FOXO1",
-                                           "Inc ADARB2 CNR1 ID2 (macaque)","Inc ADARB2 NR2F2 (macaque)",
-                                           "Inc Reln Nr2f2 (mouse)"))] <- "Inc ADARB2"
+                                           "Inc Vip Calb2 (mouse)","Inc VIP ADARB2 (pig)"))] <- "Inc VIP"
+#all.da$group[which(all.da$anno_sub2 %in% c("Inc ADARB2 GABRG1","Inc SST NMBR","Inc ADARB2 FOXO1",
+#                                           "Inc ADARB2 CNR1 ID2 (macaque)","Inc ADARB2 NR2F2 (macaque)",
+#                                           "Inc Reln Nr2f2 (mouse)"))] <- "Inc ADARB2"
 all.da$group[which(all.da$anno_sub2 %in% c("Inc LAMP5 CRH","Inc SST NEFL","Inc Meis2 lowQT (mouse)"))] <- "Inc lowQT"
 
 saveRDS(all.da,file = "/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/PanSpecies/Inc_FourSpecies.rds")

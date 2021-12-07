@@ -1,0 +1,27 @@
+DEG<-read.table("DEG_AD_Ctrl.txt",header = T,sep = "\t",quote = "",stringsAsFactors = F)
+AD.risk<-read.table("AD_risk_GWAS.txt",header = F,sep = "\t",stringsAsFactors = F)
+Inc<-readRDS("Inc_FourSpecies_Final.rds")
+Inc$Final<-paste(Inc$Species,Inc$group,sep="_")
+Idents(Inc)<-"Final"
+DEG<-DEG[order(DEG$CellType,DEG$gene),]
+for (color in c("blue","green","black","red","yellow","brown","turquoise")) {
+  module_gene<-read.table(paste0("./Module/",color," module genes.txt"),header = F,sep = "\t",stringsAsFactors = F)
+  genes<-intersect(module_gene$V1,AD.risk$V1)
+  genes_final<-intersect(DEG$gene,genes)
+  mat<-AverageExpression(Inc,features = genes_final,group.by = "Final",assays = "RNA",slot = "data")$RNA
+  mat<-t(mat)
+  mat_long<-melt(mat)
+  colnames(mat_long)<-c("Final","RiskGene","AverageExpression")
+  mat_long<-mat_long%>%separate(.,col="Final",into=c("Species","Group"),sep="_",remove=F)
+  mat_final<-mat_long[which(mat_long$Group %in% c("Inc SST","Inc PVALB","Inc LAMP5","Inc VIP")),]
+  mat_final<-mat_final[order(mat_final$Group,mat_final$RiskGene),]
+  DEG_new<-DEG[which(DEG$gene %in% genes_final),]
+  p <- ggplot(data=mat_final,mapping=aes_string(x="RiskGene",y="Group"))+
+    geom_tile(aes(fill=AverageExpression),color="black")+
+    facet_grid(Species~.,shrink = F,scales = "free",space = "free")+
+    scale_fill_distiller(palette = "Spectral")+
+    theme(axis.text.x = element_text(angle=90,colour = "black"),axis.text.y = element_text(colour = "black"))
+  pdf(paste(color,"Heatmap_combine_order_data.pdf",sep = "_"))
+  print(p)
+  dev.off()
+}

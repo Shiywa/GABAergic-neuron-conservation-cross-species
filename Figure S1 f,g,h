@@ -1,0 +1,403 @@
+## Figure S1 f,g
+##### mouse ####
+HGNC_Gset <- read.delim("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/HGNC_geneSet442.txt",header = F,sep = "\t")
+genesets_HGNC <- list()
+for (i in 1:dim(HGNC_Gset)[1]) {
+  n <- as.character(HGNC_Gset[i,])
+  n1 <- n[-which(n == "NA" | n == "")]
+  genesets_HGNC[[n1[1]]] <- n1[-1]
+}
+
+da <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_mouse/mouse_integrate.rds")
+
+## select used gene sets
+for (i in 1:length(genesets_HGNC)) {
+  n <- intersect(rownames(da@assays$RNA@counts),genesets_HGNC[[i]])
+  if(length(n) < 2){
+    print(i)
+  }
+}
+genesets_HGNC[422] <- NULL
+## repeat 10 for metaNeighbor
+AUROC.mouse.scores.all <- NA
+for (x in 1:10) {
+  c.use <- c()
+  for (i in unique(da$integrated_snn_res.1.5)) {
+    c1 <- names(da$integrated_snn_res.1.5)[which(da$integrated_snn_res.1.5 == i)]
+    set.seed(123+x)
+    c2 <- sample(c1,20)
+    c.use <- c(c.use,c2)
+  }
+  da2 <- subset(da,cells = c.use)
+  
+  dd <- da2@assays$RNA@counts
+  
+  data_mouse <- as.matrix(dd)
+  rm(dd)
+  gc()
+  
+  exp.lab.mouse <- da2$orig.ident
+  exp.lab.mouse[exp.lab.mouse == "Mouse Brain PFC"] <- 1
+  exp.lab.mouse[exp.lab.mouse == "Mouse Brain CTX"] <- 2
+  head(exp.lab.mouse) 
+  exp.lab.mouse <- as.numeric(exp.lab.mouse)
+  
+  cell.lab.mouse <- data.frame(V1 = da2$anno_BySelf)
+  cell.lab.mouse$V1[which(cell.lab.mouse$V1 == "Inc")] <- "1"
+  cell.lab.mouse$V1[-which(cell.lab.mouse$V1 == "1")] <- "0"
+  cell.lab.mouse$V1 <- as.numeric(cell.lab.mouse$V1)
+  head(cell.lab.mouse)
+  cell.lab.mouse <- as.matrix(cell.lab.mouse)
+
+  setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/metaNeighbor")
+  #save(data_mouse,exp.lab.mouse,cell.lab.mouse,genesets_HGNC,file = "mouse_Inc_metaNeighbor_input.Rdata")
+  
+  AUROC.mouse.scores = run_MetaNeighbor(data = data_mouse, experiment_labels = exp.lab.mouse, celltype_labels = cell.lab.mouse, genesets = genesets_HGNC, file_ext="mouse_Inc")
+  AUROC.mouse.scores.all <- cbind(AUROC.mouse.scores.all,AUROC.mouse.scores)
+}
+AUROC.mouse.scores.all <- AUROC.mouse.scores.all[,-1]
+colnames(AUROC.mouse.scores.all) <- c(paste("repeat",1:10,sep = ""))
+AUROC.mouse.scores.all <- as.data.frame(AUROC.mouse.scores.all)
+AUROC.mouse.scores.all$means <- unlist(apply(AUROC.mouse.scores.all,1,mean))
+AUROC.mouse.scores.all$std <- unlist(apply(AUROC.mouse.scores.all,1,sd))
+pdf("GABAergic Neuron (mouse) mean AUROC Scores.pdf",height = 4,width = 4)
+hist(AUROC.mouse.scores.all$means,main="GABAergic Neuron (mouse)",xlab="mean AUROC Scores",breaks=10,xlim=c(0,1))  
+abline(v=mean(AUROC.mouse.scores.all$means),col="red",lty=2,lwd=2)
+dev.off()
+
+## human ####
+HGNC_Gset <- read.delim("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/HGNC_geneSet442.txt",header = F,sep = "\t")
+
+genesets_HGNC <- list()
+for (i in 1:dim(HGNC_Gset)[1]) {
+  n <- as.character(HGNC_Gset[i,])
+  n1 <- n[-which(n == "NA" | n == "")]
+  n2 <- m2h[n1[-1]]
+  genesets_HGNC[[n1[1]]] <- n2[-which(is.na(n2))]
+}
+for (i in 1:dim(HGNC_Gset)[1]) {
+  n <- as.character(HGNC_Gset[i,])
+  n1 <- n[-which(n == "NA" | n == "")]
+  genesets_HGNC[[n1[1]]] <- toupper(n1[-1])
+}
+nn <- c()
+for (i in 1:length(genesets_HGNC)) {
+  n <- intersect(rownames(data_human),genesets_HGNC[[i]])
+  if(length(n) < 2){
+    print(i)
+    nn <- c(nn,i)
+  }
+}
+genesets_HGNC[nn] <- NULL
+
+da <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_human/human_integrate.rds")
+
+AUROC.human.scores.all <- NA
+for(x in 1:10){
+  c.use <- c()
+  for (i in unique(da$anno_BySelf)) {
+    c1 <- names(da$anno_BySelf)[which(da$anno_BySelf == i)]
+    set.seed(123+x)
+    c2 <- sample(c1,20)
+    c.use <- c(c.use,c2)
+  }
+  da2 <- subset(da,cells = c.use)
+  
+  dd <- da2@assays$RNA@counts
+  data_human <- as.matrix(dd)
+  rm(dd)
+  gc()
+  
+  exp.lab.human <- da2$sample
+  unique(exp.lab.human)
+  exp.lab.human[grep("BA",exp.lab.human)] <- 1
+  exp.lab.human[grep("PFC",exp.lab.human)] <- 2
+  exp.lab.human[grep("DFC",exp.lab.human)] <- 3
+  
+  head(exp.lab.human) 
+  exp.lab.human <- as.numeric(exp.lab.human)
+  
+  cell.lab.human <- data.frame(V1 = da2$anno_BySelf)
+  cell.lab.human$V1[which(cell.lab.human$V1 == "Inc")] <- "1"
+  cell.lab.human$V1[-which(cell.lab.human$V1 == "1")] <- "0"
+  cell.lab.human$V1 <- as.numeric(cell.lab.human$V1)
+  head(cell.lab.human)
+  cell.lab.human <- as.matrix(cell.lab.human)
+  
+  AUROC.human.scores = run_MetaNeighbor(data = data_human, experiment_labels = exp.lab.human, celltype_labels = cell.lab.human, genesets = genesets_HGNC, file_ext="human_Inc")
+  AUROC.human.scores.all <- cbind(AUROC.human.scores.all,AUROC.human.scores)
+}
+AUROC.human.scores.all <- AUROC.human.scores.all[,-1]
+colnames(AUROC.human.scores.all) <- c(paste("repeat",1:10,sep = ""))
+AUROC.human.scores.all <- as.data.frame(AUROC.human.scores.all)
+AUROC.human.scores.all$means <- unlist(apply(AUROC.human.scores.all,1,mean))
+AUROC.human.scores.all$std <- unlist(apply(AUROC.human.scores.all,1,sd))
+pdf("GABAergic Neuron (human) mean AUROC Scores.pdf",height = 4,width = 4)
+hist(AUROC.human.scores.all$means,main="GABAergic Neuron (human)",xlab="mean AUROC Scores",breaks=10,xlim=c(0,1))  
+abline(v=mean(AUROC.human.scores.all$means),col="red",lty=2,lwd=2)
+dev.off()
+
+##
+GeneSet_use <- intersect(rownames(AUROC.human.scores.all[which(AUROC.human.scores.all$means > 0.5),]),rownames(AUROC.mouse.scores.all[which(AUROC.mouse.scores.all$means > 0.5),]))
+human_len <- unlist(lapply(genesets_HGNC,function(x) length(x)))
+
+metaNeighbor.df <- data.frame(human = AUROC.human.scores.all[GeneSet_use,"means"],
+                              std1 = AUROC.human.scores.all[GeneSet_use,"std"],
+                              mouse = AUROC.mouse.scores.all[GeneSet_use,"means"],
+                              std2 = AUROC.mouse.scores.all[GeneSet_use,"std"],
+                              size = human_len[GeneSet_use])
+
+library(ggplot2)
+pdf("human_mouse_sampleingCell_AUROC.pdf",height = 5,width = 6)
+ggplot(metaNeighbor.df,aes(x = mouse,y = human,size = size))+geom_point()+theme_bw()+
+  geom_abline(slope = 1, intercept = 0, color = "blue") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = 0.5, linetype = "dashed", color = "grey") +
+  xlab("Mouse classification accuracy (AUROC)")+ylab("Human classification accuracy (AUROC)")+
+#  geom_errorbar(aes(ymin=human-std1, ymax=human+std1),width=0.001)+
+#  geom_errorbar(aes(xmin =mouse-std2,xmax = mouse+std2 ),width=0.001)+
+  scale_size_continuous(breaks = c(10, 40, 100))+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) 
+dev.off()
+
+## pig ####
+HGNC_Gset <- read.delim("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/HGNC_geneSet442.txt",header = F,sep = "\t")
+da <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_pig/pig_integrate.rds")
+
+gc()
+genesets_HGNC <- list()
+for (i in 1:dim(HGNC_Gset)[1]) {
+  n <- as.character(HGNC_Gset[i,])
+  n1 <- n[-which(n == "NA" | n == "")]
+  genesets_HGNC[[n1[1]]] <- toupper(n1[-1])
+}
+nn <- c()
+
+for (i in 1:length(genesets_HGNC)) {
+  n <- intersect(rownames(da@assays$RNA@counts),genesets_HGNC[[i]])
+  if(length(n) < 2){
+    print(i)
+    nn <- c(nn,i)
+  }
+}
+genesets_HGNC[nn] <- NULL
+## repeat 10 for metaNeighbor
+AUROC.pig.scores.all <- NA
+for (x in 1:10) {
+  c.use <- c()
+  for (i in unique(da$cluster)) {
+    c1 <- names(da$cluster)[which(da$cluster == i)]
+    set.seed(123+x)
+    c2 <- sample(c1,min(20,length(c1)))
+    c.use <- c(c.use,c2)
+  }
+  da2 <- subset(da,cells = c.use)
+  
+  dd <- da2@assays$RNA@counts
+  
+  data_mouse <- as.matrix(dd)
+  rm(dd)
+  gc()
+  
+  exp.lab.mouse <- da2$orig.ident
+  exp.lab.mouse[exp.lab.mouse == "Pig Brain FC"] <- 1
+  exp.lab.mouse[exp.lab.mouse == "Pig Brain TC"] <- 2
+  exp.lab.mouse[exp.lab.mouse == "Pig Brain PC"] <- 3
+  exp.lab.mouse[exp.lab.mouse == "Pig Brain OC"] <- 4
+  head(exp.lab.mouse) 
+  exp.lab.mouse <- as.numeric(exp.lab.mouse)
+  
+  cell.lab.mouse <- data.frame(V1 = da2$cluster)
+  cell.lab.mouse$V1[grep("-IN",cell.lab.mouse$V1)] <- "1"
+  cell.lab.mouse$V1[-which(cell.lab.mouse$V1 == "1")] <- "0"
+  cell.lab.mouse$V1 <- as.numeric(cell.lab.mouse$V1)
+  head(cell.lab.mouse)
+  cell.lab.mouse <- as.matrix(cell.lab.mouse)
+  
+  setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/metaNeighbor")
+  #save(data_mouse,exp.lab.mouse,cell.lab.mouse,genesets_HGNC,file = "mouse_Inc_metaNeighbor_input.Rdata")
+  
+  AUROC.mouse.scores = run_MetaNeighbor(data = data_mouse, experiment_labels = exp.lab.mouse, celltype_labels = cell.lab.mouse, genesets = genesets_HGNC, file_ext="pig_Inc")
+  AUROC.pig.scores.all <- cbind(AUROC.pig.scores.all,AUROC.mouse.scores)
+}
+AUROC.pig.scores.all <- AUROC.pig.scores.all[,-1]
+colnames(AUROC.pig.scores.all) <- c(paste("repeat",1:10,sep = ""))
+AUROC.pig.scores.all <- as.data.frame(AUROC.pig.scores.all)
+AUROC.pig.scores.all$means <- unlist(apply(AUROC.pig.scores.all,1,mean))
+AUROC.pig.scores.all$std <- unlist(apply(AUROC.pig.scores.all,1,sd))
+
+pdf("GABAergic Neuron (pig) mean AUROC Scores.pdf",height = 4,width = 4)
+hist(AUROC.pig.scores.all$means,main="GABAergic Neuron (pig)",xlab="mean AUROC Scores",breaks=10,xlim=c(0,1))  
+abline(v=mean(AUROC.pig.scores.all$means),col="red",lty=2,lwd=2)
+dev.off()
+##
+GeneSet_use <- intersect(rownames(AUROC.human.scores.all[which(AUROC.human.scores.all$means > 0.5),]),rownames(AUROC.pig.scores.all[which(AUROC.pig.scores.all$means > 0.5),]))
+human_len <- unlist(lapply(genesets_HGNC,function(x) length(x)))
+
+metaNeighbor.df <- data.frame(human = AUROC.human.scores.all[GeneSet_use,"means"],
+                              std1 = AUROC.human.scores.all[GeneSet_use,"std"],
+                              pig = AUROC.pig.scores.all[GeneSet_use,"means"],
+                              std2 = AUROC.pig.scores.all[GeneSet_use,"std"],
+                              size = human_len[GeneSet_use])
+
+library(ggplot2)
+pdf("human_pig_sampleingCell_AUROC.pdf",height = 5,width = 6)
+ggplot(metaNeighbor.df,aes(x = pig,y = human,size = size))+geom_point()+theme_bw()+
+  geom_abline(slope = 1, intercept = 0, color = "blue") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = 0.5, linetype = "dashed", color = "grey") +
+  xlab("Pig classification accuracy (AUROC)")+ylab("Human classification accuracy (AUROC)")+
+#    geom_errorbar(aes(ymin=human-std1, ymax=human+std1),width=0.001)+
+#    geom_errorbar(aes(xmin =pig-std2,xmax = pig+std2 ),width=0.001)+
+  scale_size_continuous(breaks = c(10, 40, 100))+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) 
+dev.off()
+
+## macaque #####
+HGNC_Gset <- read.delim("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/HGNC_geneSet442.txt",header = F,sep = "\t")
+da <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_macaque/macaque_integrate.rds")
+
+gc()
+genesets_HGNC <- list()
+for (i in 1:dim(HGNC_Gset)[1]) {
+  n <- as.character(HGNC_Gset[i,])
+  n1 <- n[-which(n == "NA" | n == "")]
+  genesets_HGNC[[n1[1]]] <- toupper(n1[-1])
+}
+nn <- c()
+
+for (i in 1:length(genesets_HGNC)) {
+  n <- intersect(rownames(da@assays$RNA@counts),genesets_HGNC[[i]])
+  if(length(n) < 2){
+    print(i)
+    nn <- c(nn,i)
+  }
+}
+genesets_HGNC[nn] <- NULL
+
+## repeat 10 for metaNeighbor
+AUROC.macaque.scores.all <- NA
+for (x in 1:10) {
+  c.use <- c()
+  for (i in unique(da$integrated_snn_res.2)) {
+    c1 <- names(da$integrated_snn_res.2)[which(da$integrated_snn_res.2 == i)]
+    set.seed(123+x)
+    c2 <- sample(c1,min(20,length(c1)))
+    c.use <- c(c.use,c2)
+  }
+  da2 <- subset(da,cells = c.use)
+  
+  dd <- da2@assays$RNA@counts
+  
+  data_mouse <- as.matrix(dd)
+  rm(dd)
+  gc()
+  
+  exp.lab.mouse <- da2$orig.ident
+  exp.lab.mouse[exp.lab.mouse == "Macaque Brain ACC"] <- 1
+  exp.lab.mouse[exp.lab.mouse == "Macaque Brain DFC"] <- 2
+  head(exp.lab.mouse) 
+  exp.lab.mouse <- as.numeric(exp.lab.mouse)
+  
+  cell.lab.mouse <- data.frame(V1 = da2$anno_BySelf)
+  cell.lab.mouse$V1[grep("Inc",cell.lab.mouse$V1)] <- "1"
+  cell.lab.mouse$V1[-which(cell.lab.mouse$V1 == "1")] <- "0"
+  cell.lab.mouse$V1 <- as.numeric(cell.lab.mouse$V1)
+  head(cell.lab.mouse)
+  cell.lab.mouse <- as.matrix(cell.lab.mouse)
+  
+  setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/metaNeighbor")
+  #save(data_mouse,exp.lab.mouse,cell.lab.mouse,genesets_HGNC,file = "mouse_Inc_metaNeighbor_input.Rdata")
+  
+  AUROC.mouse.scores = run_MetaNeighbor(data = data_mouse, experiment_labels = exp.lab.mouse, celltype_labels = cell.lab.mouse, genesets = genesets_HGNC, file_ext="macaque_Inc")
+  AUROC.macaque.scores.all <- cbind(AUROC.macaque.scores.all,AUROC.mouse.scores)
+}
+AUROC.macaque.scores.all <- AUROC.macaque.scores.all[,-1]
+colnames(AUROC.macaque.scores.all) <- c(paste("repeat",1:10,sep = ""))
+AUROC.macaque.scores.all <- as.data.frame(AUROC.macaque.scores.all)
+AUROC.macaque.scores.all$means <- unlist(apply(AUROC.macaque.scores.all,1,mean))
+AUROC.macaque.scores.all$std <- unlist(apply(AUROC.macaque.scores.all,1,sd))
+
+pdf("GABAergic Neuron (macaque) mean AUROC Scores.pdf",height = 4,width = 4)
+hist(AUROC.macaque.scores.all$means,main="GABAergic Neuron (macaque)",xlab="mean AUROC Scores",breaks=10,xlim=c(0,1))  
+abline(v=mean(AUROC.macaque.scores.all$means),col="red",lty=2,lwd=2)
+dev.off()
+##
+GeneSet_use <- intersect(rownames(AUROC.human.scores.all[which(AUROC.human.scores.all$means > 0.5),]),rownames(AUROC.macaque.scores.all[which(AUROC.macaque.scores.all$means > 0.5),]))
+human_len <- unlist(lapply(genesets_HGNC,function(x) length(x)))
+
+metaNeighbor.df <- data.frame(human = AUROC.human.scores.all[GeneSet_use,"means"],
+                              std1 = AUROC.human.scores.all[GeneSet_use,"std"],
+                              macaque = AUROC.macaque.scores.all[GeneSet_use,"means"],
+                              std2 = AUROC.macaque.scores.all[GeneSet_use,"std"],
+                              size = human_len[GeneSet_use])
+
+library(ggplot2)
+pdf("human_macaque_sampleingCell_AUROC.pdf",height = 5,width = 6)
+ggplot(metaNeighbor.df,aes(x = macaque,y = human,size = size))+geom_point()+theme_bw()+
+  geom_abline(slope = 1, intercept = 0, color = "blue") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = 0.5, linetype = "dashed", color = "grey") +
+  xlab("Macaque classification accuracy (AUROC)")+ylab("Human classification accuracy (AUROC)")+
+  #    geom_errorbar(aes(ymin=human-std1, ymax=human+std1),width=0.001)+
+  #    geom_errorbar(aes(xmin =macaque-std2,xmax = macaque+std2 ),width=0.001)+
+  scale_size_continuous(breaks = c(10, 40, 100))+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) 
+dev.off()
+
+save(AUROC.human.scores.all,AUROC.macaque.scores.all,AUROC.mouse.scores.all,AUROC.pig.scores.all,file = "four_AUROC_score.Rdata")
+load("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/metaNeighbor/four_AUROC_score.Rdata")
+write.table(AUROC.human.scores.all,"AUROC_human.txt",sep = "\t",quote = F)
+write.table(AUROC.mouse.scores.all,"AUROC_mouse.txt",sep = "\t",quote = F)
+write.table(AUROC.pig.scores.all,"AUROC_pig.txt",sep = "\t",quote = F)
+write.table(AUROC.macaque.scores.all,"AUROC_macaque.txt",sep = "\t",quote = F)
+
+## Figure S1 h
+max.y <- c(20,30,15,20)
+names(max.y) <- unique(all.markers$group)
+library(data.table)
+for (i in unique(all.markers$group)) {
+  setwd(i)
+  Vip_GO <- fread("All_enrichment.txt",header = T,sep = "\t",stringsAsFactors = F)
+  d.plot <- Vip_GO[which(Vip_GO$enrichGroup == "GO"),]
+  d.plot <- d.plot[order(d.plot$p.adjust,decreasing = F),]
+  d.plot <- d.plot[,c("Description","p.adjust","cluster")]
+  des <- d.plot %>% group_by(cluster) %>% top_n(5,-p.adjust)
+  d.plot <- d.plot[which(d.plot$Description %in% unique(des$Description)),]
+  d.plot$p.adjust <- -log10(d.plot$p.adjust)
+  
+  nrow <- as.character(c(1:length(unique(d.plot$cluster))))
+  names(nrow) <- unique(d.plot$cluster)
+  ncol <- as.character(c(1:length(unique(d.plot$Description))))
+  names(ncol) <- unique(d.plot$Description)
+  d.plot$Description <- as.numeric(ncol[d.plot$Description])
+  d.plot$cluster <- as.numeric(nrow[d.plot$cluster])
+  
+  simple_triplet_matrix_sparse <-  sparseMatrix(i=d.plot$cluster, j=d.plot$Description, x=d.plot$p.adjust,
+                                                dims=c(length(unique(d.plot$cluster)), length(unique(d.plot$Description))))
+  data.mtr <- as.data.frame(as.matrix(simple_triplet_matrix_sparse))
+  rownames(data.mtr) <- names(nrow) 
+  colnames(data.mtr) <- names(ncol) 
+  data.mtr <- data.mtr[,order(data.mtr["Human",],data.mtr["Mouse",],data.mtr["Macaque",],data.mtr["Pig",],decreasing = F)]
+  data.mtr <- data.mtr[c("Human","Mouse","Macaque","Pig"),]
+  data.mtr <- rbind(rep(max.y[i],dim(data.mtr)[2]) , rep(0,dim(data.mtr)[2]) , data.mtr)
+  
+  colors_border=c( rgb(0.2,0.5,0.5,0.9), rgb(0.8,0.2,0.5,0.9) , rgb(0.7,0.5,0.1,0.9), rgb(0.2,0.7,0.1,0.9))
+  colors_in=c( rgb(0.2,0.5,0.5,0.4), rgb(0.8,0.2,0.5,0.4) , rgb(0.7,0.5,0.1,0.4) , rgb(0.2,0.7,0.1,0.4))
+  
+  pdf(paste(i,"top20 significant GO term.pdf",sep = " "),height = 6,width = 9)
+  radarchart( data.mtr  , axistype=1 , title = i,
+              #custom polygon
+              pcol=colors_border , pfcol=colors_in , plwd=4 , plty=1,seg = max.y[i]/5,
+              #custom the grid
+              cglcol="grey", cglty=1, axislabcol="grey", caxislabels= seq(0,max.y[i],5), cglwd=0.8,
+              #custom labels
+              vlcex=0.8
+  )
+  legend(x=1.7, y=1, legend = rownames(data.mtr[-c(1,2),]), bty = "n", pch=20 , col=colors_in , text.col = "grey", cex=1.2, pt.cex=3)
+  dev.off()
+  setwd("..")
+}

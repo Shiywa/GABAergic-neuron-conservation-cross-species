@@ -1,0 +1,58 @@
+library(cowplot)
+library(reshape2)
+#DEG<-read.table("DEG_AD_Ctrl.txt",header = T,sep = "\t",quote = "",stringsAsFactors = F)
+AD.risk<-read.table("AD_risk_GWAS.txt",header = F,sep = "\t",stringsAsFactors = F)
+Inc<-readRDS("Inc_FourSpecies_Final.rds")
+Idents(Inc)<-"Final"
+load("./fourSpecies_homologous_genes.Rdata")
+Mouse<-use.g_h2m
+Macaque<-use.g_h2ma
+Pig<-use.g_h2p
+dir.create("Corr_Module")
+setwd("Corr_Module/")
+for (color in c("blue","green","black","red","yellow","brown","turquoise")) {
+  module_gene<-read.table(paste0("../Module/",color," module genes.txt"),header = F,sep = "\t",stringsAsFactors = F)
+  genes<-intersect(module_gene$V1,AD.risk$V1)
+  k<-0
+  mat<-AverageExpression(Inc,features = genes,group.by = "Final",assays = "RNA",slot = "counts")$RNA
+  mat<-t(mat)
+  mat_long<-melt(mat)
+  colnames(mat_long)<-c("Final","RiskGene","AverageExpression")
+  mat_long<-mat_long%>%separate(.,col="Final",into=c("Species","Group"),sep="_",remove=F)
+  mat_final<-mat_long[which(mat_long$Group %in% c("Inc SST","Inc PVALB","Inc LAMP5","Inc VIP")),]
+  list<-list()
+  for (i in list(c("Human","Mouse"),c("Human","Pig"),c("Human","Macaque"))) {
+    if (i[2]== "Mouse") {
+      genes_final<-intersect(genes,Mouse)
+    }else if (i[2]== "Pig") {
+      genes_final<-intersect(genes,Pig)
+    }else if (i[2]== "Macaque") {
+      genes_final<-intersect(genes,Macaque)
+    }
+    subset<-mat_final[which(mat_final$Species %in% i),]
+    subset<-subset[which(subset$RiskGene %in% genes_final),]
+    for (j in unique(mat_final$Group)) {
+      print(i)
+      print(j)
+      k<-k+1
+      subset1<-subset[which(subset$Group %in% j),]
+      data<-data.frame("Human"=subset1$AverageExpression[which(subset1$Species == "Human")],
+                       "Species"=subset1$AverageExpression[which(subset1$Species != "Human")])
+      #pdf(paste(i[1],i[2],j,"plot.pdf",sep = "_"))
+      p<-ggplot(data,aes(x=Human,y=Species))+ 
+        geom_point(colour = "#426671", size = 2) + 
+        geom_smooth(method = lm,colour='#764C29',fill='#E7E1D7')+
+        stat_cor(method = "pearson",label.x = 0.15, label.y = round(max(data$Species)+2))+
+        ggtitle(paste(j,i[1],i[2],sep = "_"),subtitle = paste0("Number","=",length(genes_final)))+theme_bw()
+      #print(p)
+      #dev.off()
+      list[[k]]<-p
+    }
+    
+  }
+  pdf(paste(color,"Corr.pdf",sep = "_"),width = 12,height = 9)
+  print(plot_grid(plotlist = list(list[[1]],list[[2]],list[[3]],list[[4]],
+                                  list[[5]],list[[6]],list[[7]],list[[8]],
+                                  list[[9]],list[[10]],list[[11]],list[[12]]),nrow = 3))
+  dev.off()
+} 

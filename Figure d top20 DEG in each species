@@ -1,0 +1,126 @@
+## Figure d
+## human and macaque
+human.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_human/Inc_subtype/Inc.combined(deDoublet).rds")
+macaque.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_macaque/Inc_subtype/Inc_integrate_macaque.rds")
+macaque.meta <- macaque.combined@meta.data
+macaque.combined.GeneTrans <- as.matrix(macaque.combined@assays$RNA@counts)
+
+macaque.combined.GeneTrans <- macaque.combined.GeneTrans[-grep("^ENSMMU",rownames(macaque.combined.GeneTrans)),]
+
+new.macaque <- CreateSeuratObject(macaque.combined.GeneTrans)
+new.macaque <- NormalizeData(new.macaque)
+new.macaque <- AddMetaData(new.macaque,metadata = macaque.meta)
+
+use.g_h2ma <- intersect(rownames(human.combined@assays$RNA),rownames(new.macaque@assays$RNA))
+
+## human and pig
+pig.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_pig/Inc_subtype/Inc.combined(deNotGABA).rds")
+pig.meta <- pig.combined@meta.data
+pig.combined.GeneTrans <- as.matrix(pig.combined@assays$RNA@counts)
+id.tb <- read.table("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/pig/pig_human_id_trans.txt",header = T,sep = "\t")
+colnames(id.tb)<-c(paste("cn",1:5,sep=""))
+id.tb<-id.tb[which(id.tb$cn5=="ortholog_one2one"),]
+old_features<-rownames(pig.combined.GeneTrans)
+m2h <- id.tb$cn4
+names(m2h) <- id.tb$cn2
+m2h[m2h == ""] <- NA
+new_features <- c()
+for (old_name in old_features) {
+  if(!is.na(m2h[old_name])){
+    new_features <- c(new_features,m2h[old_name])
+  }else {new_features <- c(new_features,paste("no_exist",old_name,sep = "_"))}
+}
+rownames(pig.combined.GeneTrans) <- as.character(new_features)
+pig.combined.GeneTrans <- pig.combined.GeneTrans[-grep("^no_exist",rownames(pig.combined.GeneTrans)),]
+
+new.pig <- CreateSeuratObject(pig.combined.GeneTrans)
+new.pig <- NormalizeData(new.pig)
+new.pig <- AddMetaData(new.pig,metadata = pig.meta)
+
+use.g_h2p <- intersect(rownames(human.combined@assays$RNA),rownames(new.pig@assays$RNA))
+
+## 
+mouse.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_mouse/Inc_subtype/Inc_integrate_mouse.rds")
+mouse.meta <- mouse.combined@meta.data
+mouse.combined.GeneTrans <- as.matrix(mouse.combined@assays$RNA@counts)
+id.tb <- read.table("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/mouse/Mouse2Human.txt",header = T,sep = "\t")
+colnames(id.tb)<-c(paste("cn",1:5,sep=""))
+id.tb<-id.tb[which(id.tb$cn5=="ortholog_one2one"),]
+old_features<-rownames(mouse.combined.GeneTrans)
+m2h <- id.tb$cn4
+names(m2h) <- id.tb$cn2
+m2h[m2h == ""] <- NA
+new_features <- c()
+for (old_name in old_features) {
+  if(!is.na(m2h[old_name])){
+    new_features <- c(new_features,m2h[old_name])
+  }else {new_features <- c(new_features,paste("no_exist",old_name,sep = "_"))}
+}
+rownames(mouse.combined.GeneTrans) <- as.character(new_features)
+mouse.combined.GeneTrans <- mouse.combined.GeneTrans[-grep("^no_exist",rownames(mouse.combined.GeneTrans)),]
+
+new.mouse <- CreateSeuratObject(mouse.combined.GeneTrans)
+new.mouse <- NormalizeData(new.mouse)
+new.mouse <- AddMetaData(new.mouse,metadata = mouse.meta)
+
+
+use.g_h2m <- intersect(rownames(human.combined@assays$RNA),rownames(new.mouse@assays$RNA))
+
+save(use.g_h2m,use.g_h2ma,use.g_h2p,file = "fourSpecies_homologous_genes.Rdata")
+## merge 
+new.mouse$anno_sub2 <- paste(new.mouse$anno_sub,"(mouse)",sep = " ")
+new.pig$anno_sub2 <- paste(new.pig$anno_sub,"(pig)",sep = " ")
+new.macaque$anno_sub2 <- paste(new.macaque$anno_sub,"(macaque)",sep = " ")
+human.combined$anno_sub2 <- human.combined$anno_sub
+
+all.da <- merge(human.combined, y = c(new.mouse,new.pig,new.macaque))
+DefaultAssay(all.da)
+all.da <- NormalizeData(all.da)
+sort(unique(all.da$anno_sub2))
+all.da$group <- "Not assigned"
+all.da$group[which(all.da$anno_sub2 %in% c("Inc SST CALB1","Inc SST","Inc SST NMU","Inc SST B3GAT2",
+                                           "Inc SST NPY","Inc SST RUNX1 (pig)","Inc SST KLF5 (pig)",
+                                           "Inc Sst Lhx6 (mouse)","Inc SST BCAS1 (macaque)","Inc SST GRAMD2B (macaque)",
+                                           "Inc SST HMGN4 (pig)"))] <- "Inc SST"
+all.da$group[which(all.da$anno_sub2 %in% c("Inc PVALB SULF1","Inc ECM1 ETS1","Inc PVALB SCUBE3",
+                                           "Inc unknown (macaque)","Inc PVALB PLCL1 C1QL1 (macaque)",
+                                           "Inc Pvalb Nek7 (mouse)","Inc PVALB GLI3 (macaque)",
+                                           "Inc PVALB SULF1 (pig)","Inc PVALB ADAMTS5 (pig)",
+                                           "Inc PVALB C1QL1 (macaque)"))] <- "Inc PVALB"
+all.da$group[which(all.da$anno_sub2 %in% c("Inc LAMP5 CA1","Inc LAMP5 FBN2 (macaque)","Inc Lamp5 Tnnt1 (mouse)",
+                                           "Inc LAMP5 GFRAL (pig)"))] <- "Inc LAMP5"
+all.da$group[which(all.da$anno_sub2 %in% c("Inc VIP","Inc VIP ADAMTSL1","Inc VIP CHRM2","Inc VIP HS3ST3A1",              
+                                           "Inc VIP OPRM1","Inc ADARB2 SCML4","Inc VIP ADARB2 (macaque)",
+                                           "Inc VIP TAC3 (macaque)","Inc VIP NR2F2 (macaque)",
+                                           "Inc Vip Calb2 (mouse)"))] <- "Inc VIP"
+all.da$group[which(all.da$anno_sub2 %in% c("Inc ADARB2 GABRG1","Inc SST NMBR","Inc ADARB2 FOXO1",
+                                           "Inc ADARB2 CNR1 ID2 (macaque)","Inc ADARB2 NR2F2 (macaque)",
+                                           "Inc Reln Nr2f2 (mouse)"))] <- "Inc ADARB2"
+all.da$group[which(all.da$anno_sub2 %in% c("Inc LAMP5 CRH","Inc SST NEFL","Inc Meis2 lowQT (mouse)"))] <- "Inc lowQT"
+
+saveRDS(all.da,file = "/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/PanSpecies/Inc_FourSpecies.rds")
+unique(all.da$group)
+
+
+gene.share <- intersect(use.g_h2m,intersect(use.g_h2ma,use.g_h2p))
+gene.union <- unique(c(use.g_h2m,use.g_h2ma,use.g_h2p))
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/PanSpecies")
+write.table(gene.share,"fourSpecies_sharedGenes.txt",quote = F,sep = "\t",row.names = F,col.names = F)
+write.table(gene.union,"fourSpecies_unionGenes.txt",quote = F,sep = "\t",row.names = F,col.names = F)
+
+all.da <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/PanSpecies/Inc_FourSpecies.rds")
+all.da <- SetIdent(all.da,value = "group")
+all.da2 <- subset(all.da,idents = c("Inc SST","Inc LAMP5","Inc ADARB2","Inc PVALB","Inc VIP"))
+
+all.marker <- FindAllMarkers(all.da2,min.pct = 0.25,logfc.threshold = 0.25,assay = "RNA",slot = "data",features = gene.union,only.pos = T)
+all.marker <- all.marker[which(all.marker$p_val_adj < 0.05),] 
+
+table(all.marker$cluster)
+all.marker %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> top20
+all.da2 <- ScaleData(all.da2, features = gene.union)
+
+pdf("top20 group heatmap.pdf",height = 12,width = 12)
+DoHeatmap(all.da2, features = top20$gene) + NoLegend()
+dev.off()

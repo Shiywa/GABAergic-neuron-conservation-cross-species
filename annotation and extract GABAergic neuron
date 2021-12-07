@@ -1,0 +1,887 @@
+### annotate major cell types and extract GABAergic neurons
+
+##  human GABA
+human.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_human/human_integrate.rds")
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_human/")
+# Visualization
+p1 <- DimPlot(human.combined, reduction = "tsne", group.by = "sample")
+p2 <- DimPlot(human.combined, reduction = "tsne", group.by = "cluster",label = T,split.by = "sample",ncol = 4)+NoLegend()
+pdf("TSNE four species.pdf",height = 8,width = 12)
+print(p1)
+dev.off()
+pdf("TSNE sample split raw identity.pdf",height = 23,width = 15)
+print(p2)
+dev.off()
+a <- human.combined$cluster
+unique(a)
+a[grep("Ex|L5|L2|L4|Neu",a,ignore.case = T)] <- "Exc"
+a[grep("In",a,ignore.case = T)] <- "Inc"
+a[grep("Ast",a,ignore.case = T)] <- "Ast"
+a[grep("Oli|OLG",a,ignore.case = T)] <- "Oligo"
+a[grep("OPC",a,ignore.case = T)] <- "OPC"
+a[grep("MG|micro",a,ignore.case = T)] <- "MG"
+a[grep("End",a,ignore.case = T)] <- "End"
+unique(a)
+
+human.combined$CT1 <- a
+p4 <- DimPlot(human.combined, reduction = "tsne", group.by = "CT1",label = T)+NoLegend()
+p5 <- DimPlot(human.combined, reduction = "tsne", group.by = "CT1",split.by = "CT1",ncol = 3,pt.size = 0.5)+NoLegend()
+pdf("TSNE sample celltype1.pdf",height = 8,width = 8)
+print(p4)
+dev.off()
+pdf("TSNE sample celltype1 split.pdf",height = 9,width = 8)
+print(p5)
+dev.off()
+
+DimPlot(human.combined, reduction = "umap", group.by = "CT1",label = T)+NoLegend()
+p6 <- DimPlot(human.combined, reduction = "umap", group.by = "CT1",split.by = "CT1",ncol = 3,pt.size = 0.5)+NoLegend()
+pdf("UMAP sample celltype1 split.pdf",height = 9,width = 8)
+print(p6)
+dev.off()
+
+#####
+human.combined$CT2 <- paste(human.combined$CT1,human.combined$orig.ident,sep = "_")
+pdf("major cell types markers in all data.pdf",height = 8,width = 20)
+DotPlot(human.combined,features = c("PDGFRA","CSPG4","OLIG1","COL9A1","SEMA5A","TNR","OLIG2",
+                                      "MBP","MOG","PLP1",
+                                      "PTPRC","P2RY12","C1QA","C1QB","C1QC","CTSS",
+                                      "RELN","GAD1","GAD2","NXPH1","LHX6","SST","VIP","PVALB","MSI2",
+                                      "SLC17A7","SATB2","RBFOX1","NRGN","SNAP25","CALM1","SYT1",
+                                      "FLT1","EPAS1","SLC7A1","EBF1",
+                                      "AQP4","GJB6","GFAP","MLC1"
+),group.by = "CT1",assay = "RNA")+theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+####
+human.combined$integrated_snn_res.0.5 <- factor(human.combined$integrated_snn_res.0.5,levels = c(0:36))
+p7 <- DimPlot(human.combined, reduction = "tsne",label = T)+NoLegend()
+pdf("TSNE sample by cluster.pdf",height = 8,width = 8)
+print(p7)
+dev.off()
+p8 <- DimPlot(human.combined, reduction = "tsne", group.by = "integrated_snn_res.0.5",split.by = "integrated_snn_res.0.5",ncol = 5,pt.size = 3)+NoLegend()
+pdf("TSNE sample split by cluster.pdf",height = 20,width = 15)
+print(p8)
+dev.off()
+human.combined <- FindClusters(human.combined,resolution = 1)
+human.combined$integrated_snn_res.1 <- factor(human.combined$integrated_snn_res.1,levels = c(0:47))
+p9 <- DimPlot(human.combined, reduction = "tsne", group.by = "integrated_snn_res.1",split.by = "integrated_snn_res.1",ncol = 6,pt.size = 0.5)+NoLegend()
+pdf("TSNE sample split by cluster.pdf",height = 20,width = 15)
+print(p9)
+dev.off()
+p10 <- DimPlot(human.combined, reduction = "tsne",label = T)+NoLegend()
+pdf("TSNE sample by cluster(res1).pdf",height = 8,width = 8)
+print(p10)
+dev.off()
+
+
+pdf("major cell types markers by clusters in all data(res.1).pdf",height = 10,width = 20)
+DotPlot(human.combined,features = c("PDGFRA","CSPG4","OLIG1","COL9A1","SEMA5A","TNR","OLIG2",
+                                      "MBP","MOG","PLP1",
+                                      "PTPRC","P2RY12","C1QA","C1QB","C1QC","CTSS",
+                                      "RELN","GAD1","GAD2","NXPH1","LHX6","SST","VIP","PVALB","MSI2",
+                                      "SLC17A7","SATB2","RBFOX1","NRGN","SNAP25","CALM1","SYT1",
+                                      "FLT1","EPAS1","SLC7A1","EBF1",
+                                      "AQP4","GJB6","GFAP","MLC1"
+),group.by = "integrated_snn_res.1",assay = "RNA")+theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+DefaultAssay(human.combined) <- "RNA"
+## Exc
+## Cluster 1,2,4,7,8,10,12,17,19,22,24,25,19,30,36,27,38,43,44,45 are Exc
+Exc.cell <- c(2:4,6,10:12,15,17,19,23,25,27,29,31,33,40,42,46)
+
+## Inc
+## cluster 7 9 11 17 18 23 27 are Inc
+Inc.cell <- c(8,13,16,18,20,21,28,32,34:36,47)
+
+## Ast 
+## cluster 4 24 29 are Ast
+Ast.cell <- c(7,9,22)
+
+## MG
+## cluster 13 is MG
+MG.cell <- c(14,41)
+
+## Oligodendrocyte and OPC
+## cluster 5 30 are OPC, and cluster 0 25 are Oligo
+OPC.cell <- c(1,37,44,45)
+OLI.cell <- c(0,5,30,38,43)
+
+## Endo and peri
+# cluster 12 is Endo
+End.cell <- c(24,26)
+
+## cluster 22 is other cells including VSMC and peri
+
+other.cell <- c(39)
+
+####
+all.cell <- c(Ast.cell,End.cell,Exc.cell,Inc.cell,MG.cell,OLI.cell,OPC.cell,other.cell)
+table(all.cell)
+##
+new.ident <- human.combined$integrated_snn_res.1
+new.ident <- as.character(new.ident)
+new.ident[which(new.ident %in% Ast.cell)] <- "Ast"
+new.ident[which(new.ident %in% Exc.cell)] <- "Exc"
+new.ident[which(new.ident %in% Inc.cell)] <- "Inc"
+new.ident[which(new.ident %in% MG.cell)] <- "MG"
+new.ident[which(new.ident %in% OLI.cell)] <- "Oligo"
+new.ident[which(new.ident %in% OPC.cell)] <- "OPC"
+new.ident[which(new.ident %in% End.cell)] <- "Endo"
+new.ident[which(new.ident %in% other.cell)] <- "others"
+unique(new.ident)
+
+human.combined$anno_BySelf <- new.ident
+pdf("Human_annoBySelf.pdf",height = 8,width = 8)
+DimPlot(human.combined, reduction = "tsne", group.by = "anno_BySelf",label = T)+NoLegend()
+dev.off()
+
+saveRDS(human.combined,file = "/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_human/human_integrate.rds")
+rm(human.combined)
+## MG subtype
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_human/MG_subtype")
+MG.markers <- c("P2RY12","TMEM19","FCRL2","HEXB","SALL1",## CNS microglia marker
+                "CD14","FCGR3A","CD40","CD80","CSF1R","FCER1G","SLC2A5","SIRPA", ## microglia membrane protein marker
+                "PTPRC","MRC1", ## low expression in MG but high expression in macrophage
+                "ITGAM","CD68","CX3CR1","ADGRE1","AIF1", ## both expressed in macroglia and macrophage
+                "CD44","SIGLEC1","MYB") ## peripheral macrophage marker
+
+human.combined <- SetIdent(human.combined,value = "anno_BySelf")
+MG.combined <- subset(human.combined,ident = "MG")
+
+DotPlot(MG.combined,features = MG.markers,group.by = "orig.ident",assay = "RNA")+theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+
+
+DotPlot(MG.combined,features = c("TLR4","IFNG","SIGLEC11","CD33","ADGRE1","RETNLB","ARG1",
+                                 "HLA-DMA","HLA-DMB","HLA-DOA","HLA-DOB","HLA-DPA1","HLA-DPB1",
+                                 "HLA-DQA1","HLA-DQA2","HLA-DQB1","HLA-DQB2","HLA-DRA","HLA-DRB1",
+                                 "HLA-DRB3","HLA-DRB4","HLA-DRB5"),group.by = "orig.ident",assay = "RNA")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+
+### 
+DefaultAssay(MG.combined) <- "integrated"
+MG.combined <- FindNeighbors(MG.combined,dims = 1:30)
+MG.combined <- FindClusters(MG.combined,resolution = 1)
+MG.combined <- FindClusters(MG.combined,resolution = 2)
+
+DimPlot(MG.combined,reduction = "tsne",label = T)+NoLegend()
+DimPlot(MG.combined,reduction = "tsne",label = F,split.by = "seurat_clusters",ncol = 3)+NoLegend()
+
+DotPlot(MG.combined,features = c("SALL1","P2RY12","HEXB","TREM2","FCRL2","SIGLEC7","ITGAM","CX3CR1", ## MG
+                                 "CTSS","MT-TS1","KLHDC4","CTSD","MT-RNR2","SPARC","LY86","SMCO1",   ## MG
+                                 "LY6E","CCL4","CTSZ","GLMP","MT-RNR1","CP","MT-ND4","MRPL17",       ## MG
+                                 "PF4","MRC1","FTL","SEPP1","F13A1","DAB2","LYVE1","STAB1","MS4A4A","MS4A7","TERF1"  ## Microphage
+),assay = "RNA",scale = T)+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+
+DotPlot(MG.combined,features = MG.markers,assay = "RNA")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+
+saveRDS(MG.combined,file = "MG_combined.rds")
+#
+MG.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate3/MG_subtype/MG_combined.rds")
+Idents(MG.combined)
+MG.sub.markers <- FindAllMarkers(MG.combined,only.pos = T,min.pct = 0.3,logfc.threshold = 0.25,assay = "RNA")
+MG.sub.markers <- MG.sub.markers[which(MG.sub.markers$p_val_adj < 0.05),]
+table(MG.sub.markers$cluster)
+
+c("SPI1","IRF8","CSF1R","TGFBR2")
+c("P2RY12","CD81","TREM2","APOE","VSIR","CTSS","GRN","CSF1R","C1QB","LAPTM5")
+DotPlot(MG.combined,features = c("SPI1","IRF8","CSF1R","TGFBR2","P2RY12","CD81","TREM2","APOE","VSIR","CTSS","GRN","C1QB","LAPTM5"),assay = "RNA")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+c("CDKN1","CCL3","CCL4","CCL3L3","CCL4L2")
+DotPlot(MG.combined,features =c("CDKN1","CCL3","CCL4","CCL3L3","CCL4L2"),assay = "RNA")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+
+table(MG.combined$seurat_clusters)
+
+##
+DefaultAssay(MG.combined) <- "RNA"
+MG.combined <- NormalizeData(MG.combined)
+MG.combined <- FindVariableFeatures(MG.combined, selection.method = "vst", nfeatures = 2000)
+all.genes <- rownames(MG.combined)
+MG.combined <- ScaleData(MG.combined, features = all.genes)
+MG.combined <- RunPCA(MG.combined, features = VariableFeatures(object = MG.combined))
+MG.combined <- FindNeighbors(MG.combined, dims = 1:10)
+MG.combined <- FindClusters(MG.combined, resolution = 0.5)
+MG.combined <- RunUMAP(MG.combined, dims = 1:10)
+DimPlot(MG.combined, reduction = "umap",label = T,pt.size = 0.5)+NoLegend()
+DimPlot(MG.combined, reduction = "umap",group.by = "sample")+NoLegend()
+DimPlot(MG.combined, reduction = "umap",group.by = "sample",split.by = "sample",ncol = 6)+NoLegend()
+
+DotPlot(MG.combined,features =c("CDKN1","CCL3","CCL4","CCL3L3","CCL4L2"),assay = "RNA")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+
+table(MG.combined$RNA_snn_res.0.5)
+MG.sub.markers <- FindAllMarkers(MG.combined,only.pos = T,min.pct = 0.3,logfc.threshold = 0.25,assay = "RNA")
+MG.sub.markers <- MG.sub.markers[which(MG.sub.markers$p_val_adj < 0.05),]
+table(MG.sub.markers$cluster)
+MG.sub.markers2 <- MG.sub.markers[which(MG.sub.markers$pct.2 < 0.2),]
+pp <- MG.sub.markers2 %>% group_by(cluster) %>% top_n(2,avg_log2FC)
+
+DotPlot(MG.combined,features =c("P2RY12","PTPRC",pp$gene),assay = "RNA")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+
+id <- as.character(MG.combined$RNA_snn_res.0.5)
+id[which(id %in% c("0","1"))] <- "MG P2RY12+P3H2+"
+id[which(id %in% c(2))] <- "MG P2RY12+CCK+"
+id[which(id %in% c(3))] <- "MG P2RY12+GPR98+"
+id[which(id %in% c(4))] <- "MG P2RY12+CD83+"
+id[which(id %in% c(5))] <- "MG PTPRC+SPP1+"
+id[which(id %in% c(6))] <- "MG P2RY12+LRMDA+"
+id[which(id %in% c(7))] <- "MG PTPRC+NKG7+"
+MG.combined$anno_sub <- id
+MG.combined <- SetIdent(MG.combined,value = "anno_sub")
+MG.sub.markers <- FindAllMarkers(MG.combined,only.pos = T,min.pct = 0.3,logfc.threshold = 0.25,assay = "RNA")
+MG.sub.markers <- MG.sub.markers[which(MG.sub.markers$p_val_adj < 0.05),]
+MG.sub.markers2 <- MG.sub.markers[which(MG.sub.markers$pct.2 < 0.2),]
+pp <- MG.sub.markers2 %>% group_by(cluster) %>% top_n(2,avg_log2FC)
+
+
+###
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_human/Inc_subtype")
+Inc.combined <- subset(human.combined,ident = "Inc")
+saveRDS(Inc.combined,file = "Inc.combined.rds")
+
+##
+Inc.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_human/Inc_subtype/Inc.combined.rds")
+DefaultAssay(Inc.combined)
+Inc.combined <- FindNeighbors(Inc.combined, dims = 1:20,assay = "RNA",)
+Inc.combined <- FindClusters(Inc.combined, resolution = 0.5)
+Inc.combined <- FindClusters(Inc.combined, resolution = 1)
+Inc.combined <- FindClusters(Inc.combined, resolution = 1.5)
+Inc.combined <- FindClusters(Inc.combined, resolution = 2)
+levels(Inc.combined@active.ident)
+
+Inc.sub.markers <- c("GAD1","GAD2",
+                     "VIP","SYT6","TSPAN12","CHRNA6","ADAMTSL1","PENK","QPCT","HS3ST3A1","PCDH20","SERPINF1","TYR","CHRM2","CBLN1","CCDC184","GGH","LBH","CASC6","SPAG17","OPRM1","TAC3","CALB2",
+                     "SST","CHRNA4","BAGE2","NPY","HPGD","B3GAT2","KLHDC8A","NPM1P10","GXYLT2","STK32A","CALB1","ADGRG6","FRZB","TH","MIR548F2","NMU","CRHBP","NMBR","CUX2"
+                     "PVALB","LGR5","MEPE","WFDC2","SULF1","SCUBE3",
+                     "PAX6","CDH12","TNFAIP8L3",
+                     "LHX6","GLP1R",
+                     "LAMP5","NMBR","LCP2","DBP","CA1",
+                     "ADARB2","MC4R")
+Inc.sub.markers2 <- c("GAD1","GAD2",
+                     "VIP","OPRM1","HS3ST3A1","CHRM2","ADAMTSL1",
+                     "SST","NPY","NMU","NMBR","NEFL","CALB1","B3GAT2",
+                     "PVALB","SULF1","SCUBE3",
+                     "LAMP5","TRPC3","CRH","CA1",
+                     "ECM1","ETS1",
+                     "ADARB2","SCML4","GABRG1","FOXO1",
+                     "SLC17A7","SATB2")
+
+DimPlot(Inc.combined, reduction = "tsne",pt.size = 0.5,label = T)+NoLegend()
+DimPlot(Inc.combined, reduction = "umap",pt.size = 0.5,label = T)+NoLegend()
+
+DimPlot(Inc.combined, reduction = "tsne",pt.size = 0.5,split.by = "seurat_clusters",ncol = 6)+NoLegend()
+
+DotPlot(Inc.combined,features = Inc.sub.markers2,assay = "RNA",group.by = "anno_sub")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+pdf("human GABAergicN subtypes marker.pdf",height = 8,width = 12)
+DotPlot(Inc.combined,features = Inc.sub.markers2,assay = "RNA",group.by = "anno_sub")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+DefaultAssay(Inc.combined) <- "RNA"
+Inc.combined[["percent.mt"]] <- PercentageFeatureSet(Inc.combined, pattern = "^MT-")
+VlnPlot(Inc.combined, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 1,pt.size = 0)
+
+id <- as.character(Inc.combined$seurat_clusters)
+id[which(id %in% c(0,2,7))] <- "Inc PVALB SULF1"
+id[which(id %in% c(11))] <- "Inc PVALB SCUBE3"
+
+id[which(id %in% c(5))] <- "Inc VIP CHRM2"
+id[which(id %in% c(9))] <- "Inc VIP HS3ST3A1"
+id[which(id %in% c(14))] <- "Inc VIP OPRM1"
+id[which(id %in% c(19))] <- "Inc VIP ADAMTSL1"
+id[which(id %in% c(17,21))] <- "Inc VIP"
+
+id[which(id %in% c(1,20))] <- "Inc SST CALB1"
+id[which(id %in% c(3,8))] <- "Inc SST B3GAT2"
+id[which(id %in% c(4))] <- "Inc SST NMU"
+id[which(id %in% c(27))] <- "Inc SST NPY"
+id[which(id %in% c(15))] <- "Inc SST NEFL"
+id[which(id %in% c(18))] <- "Inc SST NMBR"
+id[which(id %in% c(23,24))] <- "Inc SST"
+
+id[which(id %in% c(6,26))] <- "Inc LAMP5 TRPC3"
+id[which(id %in% c(12))] <- "Inc LAMP5 CA1"
+id[which(id %in% c(25))] <- "Inc LAMP5 CRH"
+
+id[which(id %in% c(10))] <- "Inc ADARB2 GABRG1"
+id[which(id %in% c(13))] <- "Inc ADARB2 FOXO1"
+id[which(id %in% c(16))] <- "Inc ECM1 ETS1"
+id[which(id %in% c(22))] <- "Inc ADARB2 SCML4"
+id[which(id %in% c(28))] <- "Doublet"
+
+unique(id)
+Inc.combined$anno_sub <- id
+
+Inc.combined <- SetIdent(Inc.combined,value = "anno_sub")
+Inc.markers <- FindAllMarkers(Inc.combined,assay = "RNA",slot = "data",min.pct = 0.25,logfc.threshold = 0.25,only.pos = T)
+Inc.markers <- Inc.markers[which(Inc.markers$p_val_adj < 0.05),]
+
+Inc2 <- Inc.markers %>% group_by(cluster) %>% top_n(10,avg_log2FC)
+pdf("human GABAergic tsne.pdf",height = 10,width = 10)
+DimPlot(Inc.combined,group.by = "anno_sub",reduction = "tsne",label = T)+NoLegend()
+dev.off()
+pdf("human GABAergic QC.pdf",height = 10,width = 10)
+VlnPlot(Inc.combined, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 1,pt.size = 0,group.by = "anno_sub")
+dev.off()
+## hclust
+mtr <- NA
+for (i in unique(Inc.combined$anno_sub)[-18]) {
+  da <- Inc.combined@assays$RNA@data[rownames(Inc.combined@assays$integrated),which(Inc.combined$anno_sub == i)]
+  mtr <- cbind(mtr,rowMeans(as.matrix(da)))
+}
+mtr <- mtr[,-1]
+colnames(mtr) <- unique(Inc.combined$anno_sub)[-18]
+sampleTree <- hclust(dist(t(mtr)),method = "average")
+plot(sampleTree, main = "GABAergic neuron subtypes clustering", sub="", xlab="")
+saveRDS(Inc.combined,file = "Inc.combined.rds")
+
+Inc.combined2 <- subset(Inc.combined,cells = colnames(Inc.combined@assays$RNA)[-which(Inc.combined$anno_sub == "Doublet")])
+DimPlot(Inc.combined2,group.by = "anno_sub",reduction = "tsne",label = T)+NoLegend()
+
+saveRDS(Inc.combined2,file = "Inc.combined(deDoublet).rds")
+
+## mouse
+library(Seurat)
+library(ggplot2)
+mouse.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_mouse/mouse_integrate.rds")
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_mouse/")
+# Visualization
+p1 <- DimPlot(mouse.combined, reduction = "tsne", group.by = "sample")
+p2 <- DimPlot(mouse.combined, reduction = "tsne", group.by = "cluster",label = T,split.by = "sample",ncol = 4)+NoLegend()
+pdf("TSNE four species.pdf",height = 8,width = 10)
+print(p1)
+dev.off()
+pdf("TSNE sample split raw identity.pdf",height = 15,width = 20)
+print(p2)
+dev.off()
+p3 <- DimPlot(mouse.combined, reduction = "tsne", group.by = "orig.ident",split.by = "orig.ident",ncol = 1)+NoLegend()
+pdf("TSNE sample split region.pdf",height = 9,width = 5)
+print(p3)
+dev.off()
+
+a <- mouse.combined$cluster
+unique(a)
+a[grep("Ex|L5|L2|L4|Neu",a,ignore.case = T)] <- "Exc"
+a[grep("In",a,ignore.case = T)] <- "Inc"
+a[grep("Ast",a,ignore.case = T)] <- "Ast"
+a[grep("Oli|OLG",a,ignore.case = T)] <- "Oligo"
+a[grep("OPC",a,ignore.case = T)] <- "OPC"
+a[grep("MG|micro",a,ignore.case = T)] <- "MG"
+a[grep("End",a,ignore.case = T)] <- "End"
+unique(a)
+
+mouse.combined$CT1 <- a
+p4 <- DimPlot(mouse.combined, reduction = "tsne", group.by = "CT1",label = T)+NoLegend()
+p5 <- DimPlot(mouse.combined, reduction = "tsne", group.by = "CT1",split.by = "CT1",ncol = 3,pt.size = 0.5)+NoLegend()
+pdf("TSNE sample celltype1.pdf",height = 8,width = 8)
+print(p4)
+dev.off()
+pdf("TSNE sample celltype1 split.pdf",height = 9,width = 8)
+print(p5)
+dev.off()
+
+mouse.combined$CT2 <- paste(mouse.combined$CT1,mouse.combined$orig.ident,sep = "_")
+pdf("major cell types markers in all data.pdf",height = 8,width = 20)
+DotPlot(mouse.combined,features = c("Pdgfra","Cspg4","Olig1","Col9a1","Sema5a","Tnr","Olig2",
+                                    "Mbp","Mog","Plp1",
+                                    "Ptprc","P2ry12","C1qa","C1qb","C1qc","Ctss",
+                                    "Reln","Gad1","Gad2","Nxph1","Lhx6","Sst","Vip","Pvalb","Msi2",
+                                    "Slc17a7","Satb2","Rbfox1","Nrgn","Snap25","Calm1","Syt1",
+                                    "Flt1","Epas1","Slc7a1","Ebf1",
+                                    "Aqp4","Gjb6","Gfap","Mlc1"
+),group.by = "CT1",assay = "RNA")+theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+###
+####
+mouse.combined$integrated_snn_res.0.5 <- factor(mouse.combined$integrated_snn_res.0.5,levels = c(0:28))
+p7 <- DimPlot(mouse.combined, reduction = "tsne",label = T)+NoLegend()
+pdf("TSNE sample by cluster.pdf",height = 8,width = 8)
+print(p7)
+dev.off()
+
+mouse.combined <- FindClusters(mouse.combined,resolution = 1)
+mouse.combined$integrated_snn_res.1 <- factor(mouse.combined$integrated_snn_res.1,levels = c(0:41))
+
+DefaultAssay(mouse.combined) <- "integrated"
+mouse.combined <- FindClusters(mouse.combined,resolution = 3)
+mouse.combined$integrated_snn_res.3 <- factor(mouse.combined$integrated_snn_res.3,levels = c(0:62))
+
+pdf("major cell types markers by clusters in all data(res.3).pdf",height = 15,width = 20)
+DotPlot(mouse.combined,features = c("Pdgfra","Cspg4","Olig1","Col9a1","Sema5a","Tnr","Olig2",
+                                    "Mbp","Mog","Plp1",
+                                    "Ptprc","P2ry12","C1qa","C1qb","C1qc","Ctss",
+                                    "Reln","Gad1","Gad2","Nxph1","Lhx6","Sst","Vip","Pvalb","Msi2",
+                                    "Slc17a7","Satb2","Rbfox1","Nrgn","Snap25","Calm1","Syt1",
+                                    "Flt1","Epas1","Slc7a1","Ebf1",
+                                    "Aqp4","Gjb6","Gfap","Mlc1"
+),group.by = "integrated_snn_res.3",assay = "RNA")+theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+DefaultAssay(mouse.combined) <- "RNA"
+## Exc
+## Cluster 1,2,4,7,8,10,12,17,19,22,24,25,19,30,36,27,38,43,44,45 are Exc
+Exc.cell <- c(1,3,7:11,14,17,21:23,25,27:31,37,39,40,43,46,48,54:57)
+
+## Inc
+## cluster 7 9 11 17 18 23 27 are Inc
+Inc.cell <- c(2,12,15,18,26,34:36,41,45,48,50,56:59,61)
+
+## Ast 
+## cluster 4 24 29 are Ast
+Ast.cell <- c(6,24,43,49,60)
+
+## MG
+## cluster 13 is MG
+MG.cell <- c(5,52,53,61)
+
+## Oligodendrocyte and OPC
+## cluster 5 30 are OPC, and cluster 0 25 are Oligo
+OPC.cell <- c(13,47,53,57,62)
+OLI.cell <- c(0,4,16,44,53:55,58,60)
+
+## Endo and peri
+# cluster 12 is Endo
+End.cell <- c(19,32,38,42,51)
+
+####
+all.cell <- c(Ast.cell,End.cell,Exc.cell,Inc.cell,MG.cell,OLI.cell,OPC.cell)
+table(all.cell)
+
+DefaultAssay(mouse.combined) <- "RNA"
+mouse.combined[["percent.mt"]] <- PercentageFeatureSet(mouse.combined, pattern = "^mt-")
+VlnPlot(mouse.combined, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 1,pt.size = 0)
+
+doublet.cell <- c(43,48,53:58,61)
+lowQT.cell <- c(20,33)
+##
+new.ident <- mouse.combined$integrated_snn_res.3
+new.ident <- as.character(new.ident)
+new.ident[which(new.ident %in% doublet.cell)] <- "Doublet"
+new.ident[which(new.ident %in% lowQT.cell)] <- "lowQT"
+new.ident[which(new.ident %in% Ast.cell)] <- "Ast"
+new.ident[which(new.ident %in% Exc.cell)] <- "Exc"
+new.ident[which(new.ident %in% Inc.cell)] <- "Inc"
+new.ident[which(new.ident %in% MG.cell)] <- "MG"
+new.ident[which(new.ident %in% OLI.cell)] <- "Oligo"
+new.ident[which(new.ident %in% OPC.cell)] <- "OPC"
+new.ident[which(new.ident %in% End.cell)] <- "Endo"
+unique(new.ident)
+
+mouse.combined$anno_BySelf <- new.ident
+
+p8 <- DimPlot(mouse.combined, reduction = "tsne",group.by = "anno_BySelf",label = T)+NoLegend()
+pdf("TSNE sample by celltype.pdf",height = 8,width = 8)
+print(p8)
+dev.off()
+
+saveRDS(mouse.combined,file = "/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_mouse/mouse_integrate.rds")
+
+###
+###
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_mouse/Inc_subtype")
+mouse.combined <- SetIdent(mouse.combined,value = "anno_BySelf")
+Inc.combined <- subset(mouse.combined,ident = "Inc")
+saveRDS(Inc.combined,file = "Inc.combined.rds")
+
+DefaultAssay(Inc.combined)
+Inc.combined <- FindNeighbors(Inc.combined, dims = 1:20)
+Inc.combined <- FindClusters(Inc.combined, resolution = 0.5)
+Inc.combined <- FindClusters(Inc.combined, resolution = 1)
+Inc.combined <- FindClusters(Inc.combined, resolution = 1.5)
+Inc.combined <- FindClusters(Inc.combined, resolution = 2)
+Inc.combined <- FindClusters(Inc.combined, resolution = 3)
+
+DimPlot(Inc.combined,reduction = "tsne",label = T,group.by = "anno_sub")+NoLegend()
+
+Inc.marker <- c("Gad1","Gad2","Lamp5","Krt73","Plch2","Dock5","Lsp1","Lhx6","Fam19a1","Pax6","Ntn1","Npy2r","Tmem182",
+                "Vip","Igfbp6","Car10","Col15a1","Pde1a","Crispld2","Htr2c","Igfbp4","Mab21l1","Pltp","Lmo1","Myl1","Arhgap36","Hmcn1","Gpc3","Slc18a3","Fam159b","Chat","Htr1f","Pygm","C1ql1","Lect1","Oxtr","Rspo4","Rxfp1","Rspo1","Itga4","Ptprt","Pkp2",
+                "Sncg","Gpr50","Slc17a8","Itih5","Nptx2",
+                "Serpinf1","Clrn1","Aqp5",
+                "Meis2","Adamts19",
+                "Sst","Chodl","Chrna2","Glra3","Ptgdr","Myh8","Etv1","Fibin","Nr2f2","Necab1","Crh","4930553C11Rik","Crhr2","Efemp1","Esm1","Tac2","Myh4","Rxfp1","Eya1","Prdm8","Tac2","Tacstd2","Hpse","Cbln4","Sema3c","Calb2","Pdlim5","Mme","Fam114a1","Tac1","Htr1d","Tacr3","Nts",
+                "Pvalb","Gpr149","Islr","Gabrg1","Akr1c18","Ntf3","Th","Calb1","Reln","Itm2a","Tac1","Sema3e","Kank4","Tpbg","Vipr2")
+Inc.marker <- c()
+
+pdf("mouse_Inc_sub_res2.pdf",height = 8,width = 23)
+DotPlot(Inc.combined,features = unique(Inc.marker),assay = "RNA",group.by = "integrated_snn_res.2")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+id <- as.character(Inc.combined$integrated_snn_res.2)
+id[which(id %in% c(4,10,13))] <- "Inc Lamp5 Otof"
+id[which(id %in% c(11))] <- "Inc Reln Nr2f2"
+id[which(id %in% c(7))] <- "Inc Lamp5 Tnnt1"
+id[which(id %in% c(0,1,9))] <- "Inc Lamp5 Mme"
+
+id[which(id %in% c(12,14))] <- "Inc Vip Calb2"
+
+id[which(id %in% c(2))] <- "Inc Sst Lhx6"
+id[which(id %in% c(8,15,16))] <- "Inc Pvalb Nek7"
+
+id[which(id %in% c(6))] <- "Inc Meis2 Cpa6"
+id[which(id %in% c(17))] <- "Inc Pde1a Tac1"
+id[which(id %in% c(18))] <- "Inc Meis2 lowQT"
+id[which(id %in% c(3,5))] <- "Inc Gabrg1 Car10"
+
+unique(id)
+Inc.combined$anno_sub <- id
+
+Inc.marker2 <- c("Vip","Calb2","Sst","Lhx6","Reln","Nr2f2","Pvalb","Nek7","Pde1a","Tac1","Meis2",
+                 "Cpa6","Lamp5","Tnnt1","Otof","Mme","Gabrg1","Car10")
+
+pdf("mouse GABAergicN subtypes marker.pdf",height = 3.5,width = 8)
+DotPlot(Inc.combined,features = Inc.marker2,assay = "RNA",group.by = "anno_sub")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+pdf("mouse GABAergic tsne.pdf",height = 10,width = 10)
+DimPlot(Inc.combined,reduction = "tsne",label = T,group.by = "anno_sub")+NoLegend()
+dev.off()
+
+VlnPlot(Inc.combined, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 1,pt.size = 0,group.by = "anno_sub",assay = "RNA")
+
+Inc.combined <- SetIdent(Inc.combined,value = "anno_sub")
+Inc.markers <- FindAllMarkers(Inc.combined,assay = "RNA",slot = "data",min.pct = 0.25,logfc.threshold = 0.25,only.pos = T)
+Inc.markers <- Inc.markers[which(Inc.markers$p_val_adj < 0.05),]
+
+saveRDS(Inc.combined,file = "Inc_integrate_mouse.rds")
+
+Inc.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_mouse/Inc_subtype/Inc_integrate_mouse.rds")
+
+## macaque
+library(Seurat)
+library(ggplot2)
+
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_macaque/")
+macaque.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_macaque/macaque_integrate.rds")
+macaque.combined <- FindClusters(macaque.combined,resolution = 1)
+macaque.combined <- FindClusters(macaque.combined,resolution = 2)
+
+# Visualization
+p1 <- DimPlot(macaque.combined, reduction = "tsne", group.by = "sample")
+p2 <- DimPlot(macaque.combined, reduction = "tsne", group.by = "cluster",label = T,split.by = "sample",ncol = 2)+NoLegend()
+pdf("TSNE four species.pdf",height = 8,width = 10)
+print(p1)
+dev.off()
+
+p8 <- DimPlot(macaque.combined, reduction = "tsne", group.by = "integrated_snn_res.2",label = T)+NoLegend()
+pdf("TSNE sample cluster.pdf",height = 8,width = 8)
+print(p8)
+dev.off()
+
+pdf("major cell types markers in all data.pdf",height = 10,width = 16)
+DotPlot(macaque.combined,features = c("PDGFRA","CSPG4","OLIG1","COL9A1","SEMA5A","TNR","OLIG2",
+                                  "MBP","MOG","PLP1",
+                                  "PTPRC","P2RY12","C1QA","C1QB","C1QC","CTSS",
+                                  "RELN","GAD1","GAD2","NXPH1","LHX6","SST","VIP","PVALB","MSI2",
+                                  "SLC17A7","SATB2","RBFOX1","NRGN","SNAP25","CALM1","SYT1",
+                                  "FLT1","EPAS1","SLC7A1","EBF1",
+                                  "AQP4","GJB6","GFAP","MLC1"
+),group.by = "integrated_snn_res.2",assay = "RNA")+theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+## Exc
+## Cluster 1,2,4,7,8,10,12,17,19,22,24,25,19,30,36,27,38,43,44,45 are Exc
+Exc.cell <- c(0:4,8,10,12,16,18,19,21,23:27,29,31,32,34,35,37)
+
+## Inc
+## cluster 7 9 11 17 18 23 27 are Inc
+Inc.cell <- c(6,7,9,11,13:15,17,28,37,39)
+
+## Ast 
+## cluster 4 24 29 are Ast
+Ast.cell <- c(5,33)
+
+## MG
+## cluster 13 is MG
+MG.cell <- c(36)
+
+## Oligodendrocyte and OPC
+## cluster 5 30 are OPC, and cluster 0 25 are Oligo
+OPC.cell <- c(22)
+OLI.cell <- c(30,38,40)
+
+## Endo and peri
+# cluster 12 is Endo
+End.cell <- c(20)
+
+## cluster 22 is other cells including VSMC and peri
+
+other.cell <- c(41)
+
+####
+all.cell <- c(Ast.cell,End.cell,Exc.cell,Inc.cell,OLI.cell,OPC.cell,other.cell)
+table(all.cell)
+##
+new.ident <- macaque.combined$integrated_snn_res.2
+new.ident <- as.character(new.ident)
+new.ident[which(new.ident %in% Ast.cell)] <- "Ast"
+new.ident[which(new.ident %in% Exc.cell)] <- "Exc"
+new.ident[which(new.ident %in% Inc.cell)] <- "Inc"
+new.ident[which(new.ident %in% MG.cell)] <- "MG"
+new.ident[which(new.ident %in% OLI.cell)] <- "Oligo"
+new.ident[which(new.ident %in% OPC.cell)] <- "OPC"
+new.ident[which(new.ident %in% End.cell)] <- "Endo"
+new.ident[which(new.ident %in% other.cell)] <- "Doublet"
+unique(new.ident)
+
+macaque.combined$anno_BySelf <- new.ident
+pdf("macaque_annoBySelf.pdf",height = 8,width = 8)
+DimPlot(macaque.combined, reduction = "tsne", group.by = "anno_BySelf",label = T)+NoLegend()
+dev.off()
+
+saveRDS(macaque.combined,file = "/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_macaque/macaque_integrate.rds")
+rm(macaque.combined)
+
+##
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_macaque/Inc_subtype")
+macaque.combined <- SetIdent(macaque.combined,value = "anno_BySelf")
+#unique(macaque.combined$CT1)
+Inc.combined <- subset(macaque.combined,ident = "Inc")
+saveRDS(Inc.combined,file = "Inc.combined.rds")
+
+##
+
+##
+Inc.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_macaque/Inc_subtype/Inc.combined.rds")
+DefaultAssay(Inc.combined)
+Inc.combined <- FindNeighbors(Inc.combined, dims = 1:20)
+Inc.combined <- FindClusters(Inc.combined, resolution = 0.5)
+Inc.combined <- FindClusters(Inc.combined, resolution = 1)
+Inc.combined <- FindClusters(Inc.combined, resolution = 1.5)
+Inc.combined <- FindClusters(Inc.combined, resolution = 2)
+levels(Inc.combined@active.ident)
+
+Inc.sub.markers <- c("GAD1","GAD2",
+                     "VIP","SYT6","TSPAN12","CHRNA6","ADAMTSL1","PENK","QPCT","HS3ST3A1","PCDH20","SERPINF1","TYR","CHRM2","CBLN1","CCDC184","GGH","LBH","CASC6","SPAG17","OPRM1","TAC3","CALB2",
+                     "SST","CHRNA4","BAGE2","NPY","HPGD","B3GAT2","KLHDC8A","NPM1P10","GXYLT2","STK32A","CALB1","ADGRG6","FRZB","TH","MIR548F2","NMU","CRHBP","NMBR","CUX2",
+                     "PVALB","LGR5","MEPE","WFDC2","SULF1","SCUBE3",
+                     "PAX6","CDH12","TNFAIP8L3",
+                     "LHX6","GLP1R",
+                     "LAMP5","LCP2","DBP","CA1",
+                     "ADARB2","MC4R")
+
+DimPlot(Inc.combined, reduction = "tsne",pt.size = 0.5,label = T)+NoLegend()
+DotPlot(Inc.combined,features = Inc.sub.markers,assay = "RNA")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+pdf("human GABAergicN subtypes marker.pdf",height = 8,width = 12)
+DotPlot(Inc.combined,features = Inc.sub.markers2,assay = "RNA",group.by = "anno_sub")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+id <- as.character(Inc.combined$seurat_clusters)
+id[which(id %in% c(2,6))] <- "Inc PVALB PLCL1 C1QL1"
+id[which(id %in% c(14))] <- "Inc PVALB C1QL1"
+id[which(id %in% c(18))] <- "Inc PVALB GLI3"
+
+id[which(id %in% c(0,7))] <- "Inc VIP TAC3"
+id[which(id %in% c(8))] <- "Inc VIP NR2F2"
+id[which(id %in% c(20))] <- "Inc VIP ADARB2"
+
+id[which(id %in% c(1,5,11,15))] <- "Inc SST"
+id[which(id %in% c(17))] <- "Inc SST GRAMD2B"
+id[which(id %in% c(19))] <- "Inc SST BCAS1"
+
+id[which(id %in% c(16))] <- "Inc LAMP5 FBN2"
+
+id[which(id %in% c(3))] <- "Inc ADARB2 NR2F2"
+id[which(id %in% c(9,13))] <- "Inc ADARB2 CNR1 ID2"
+id[which(id %in% c(12))] <- "Inc ADARB2 ID2"
+
+id[which(id %in% c(4,10))] <- "Inc unknown"
+
+unique(id)
+Inc.combined$anno_sub <- id
+
+Inc.combined <- SetIdent(Inc.combined,value = "anno_sub")
+Inc.markers <- FindAllMarkers(Inc.combined,assay = "RNA",slot = "data",min.pct = 0.25,logfc.threshold = 0.25,only.pos = T)
+Inc.markers <- Inc.markers[which(Inc.markers$p_val_adj < 0.05),]
+
+Inc2 <- Inc.markers %>% group_by(cluster) %>% top_n(10,avg_log2FC)
+pdf("human GABAergic tsne.pdf",height = 10,width = 10)
+DimPlot(Inc.combined,group.by = "anno_sub",reduction = "tsne",label = T)+NoLegend()
+dev.off()
+
+Inc.sub.markers2 <- c("GAD1","GAD2",
+                      "VIP","TAC3","NR2F2",
+                      "SST","TRHDE","GRAMD2B","BCAS1",
+                      "PVALB","PLCL1","C1QL1","GLI3",
+                      "LAMP5","FBN2",
+                      "ADARB2","CNR1","ID2")
+
+DotPlot(Inc.combined,features = Inc.sub.markers2,assay = "RNA",group.by = "anno_sub")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+DimPlot(Inc.combined, reduction = "tsne",pt.size = 0.5,label = T)+NoLegend()
+
+pdf("macaque GABAergicN subtypes marker.pdf",height = 4,width = 10)
+DotPlot(Inc.combined,features = Inc.sub.markers2,assay = "RNA",group.by = "anno_sub")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+DefaultAssay(Inc.combined) <- "RNA"
+Inc.combined[["percent.mt"]] <- PercentageFeatureSet(Inc.combined, pattern = "^MT-")
+VlnPlot(Inc.combined, features = c("nFeature_RNA", "nCount_RNA"), ncol = 1,pt.size = 0)
+
+pdf("macaque GABAergicN subtypes.pdf",height = 4,width = 10)
+DimPlot()
+dev.off()
+
+saveRDS(Inc.combined,file = "Inc_integrate_macaque.rds")
+
+## pig
+library(Seurat)
+library(ggplot2)
+
+pig.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_pig/pig_integrate.rds")
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_pig//")
+# Visualization
+p1 <- DimPlot(pig.combined, reduction = "tsne", group.by = "sample")
+p2 <- DimPlot(pig.combined, reduction = "tsne", group.by = "cluster",label = T,split.by = "sample",ncol = 2)+NoLegend()
+pdf("TSNE four species.pdf",height = 8,width = 10)
+print(p1)
+dev.off()
+pdf("TSNE sample split raw identity.pdf",height = 15,width = 15)
+print(p2)
+dev.off()
+a <- pig.combined$cluster
+unique(a)
+a[grep("Ex|L5|L2|L4|Neu",a,ignore.case = T)] <- "Exc"
+a[grep("In",a,ignore.case = T)] <- "Inc"
+a[grep("Ast",a,ignore.case = T)] <- "Ast"
+a[grep("Oli|OLG",a,ignore.case = T)] <- "Oligo"
+a[grep("OPC",a,ignore.case = T)] <- "OPC"
+a[grep("MG|micro",a,ignore.case = T)] <- "MG"
+a[grep("End",a,ignore.case = T)] <- "End"
+unique(a)
+
+pig.combined$CT1 <- a
+p4 <- DimPlot(pig.combined, reduction = "tsne", group.by = "CT1",label = T)+NoLegend()
+p5 <- DimPlot(pig.combined, reduction = "tsne", group.by = "CT1",split.by = "CT1",ncol = 3,pt.size = 0.5)+NoLegend()
+pdf("TSNE sample celltype1.pdf",height = 8,width = 8)
+print(p4)
+dev.off()
+pdf("TSNE sample celltype1 split.pdf",height = 9,width = 8)
+print(p5)
+dev.off()
+
+#####
+pig.combined$CT2 <- paste(pig.combined$CT1,pig.combined$orig.ident,sep = "_")
+pdf("major cell types markers in all data.pdf",height = 8,width = 20)
+DotPlot(pig.combined,features = c("PDGFRA","CSPG4","OLIG1","COL9A1","SEMA5A","TNR","OLIG2",
+                                    "MBP","MOG","PLP1",
+                                    "PTPRC","P2RY12","C1QA","C1QB","C1QC","CTSS",
+                                    "RELN","GAD1","GAD2","NXPH1","LHX6","SST","VIP","PVALB","MSI2",
+                                    "SLC17A7","SATB2","RBFOX1","NRGN","SNAP25","CALM1","SYT1",
+                                    "FLT1","EPAS1","SLC7A1","EBF1",
+                                    "AQP4","GJB6","GFAP","MLC1"
+),group.by = "CT1",assay = "RNA")+theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+####
+###
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_pig/Inc_subtype")
+pig.combined <- SetIdent(pig.combined,value = "CT1")
+unique(pig.combined$CT1)
+Inc.combined <- subset(pig.combined,ident = "Inc")
+saveRDS(Inc.combined,file = "Inc.combined.rds")
+
+##
+Inc.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_pig/Inc_subtype/Inc.combined.rds")
+DefaultAssay(Inc.combined)
+Inc.combined <- FindNeighbors(Inc.combined, dims = 1:20)
+Inc.combined <- FindClusters(Inc.combined, resolution = 0.5)
+Inc.combined <- FindClusters(Inc.combined, resolution = 1)
+Inc.combined <- FindClusters(Inc.combined, resolution = 1.5)
+Inc.combined <- FindClusters(Inc.combined, resolution = 2)
+levels(Inc.combined@active.ident)
+
+Inc.sub.markers <- c("GAD1","GAD2",
+                     "VIP","SYT6","TSPAN12","CHRNA6","ADAMTSL1","PENK","QPCT","HS3ST3A1","PCDH20","SERPINF1","TYR","CHRM2","CBLN1","CCDC184","GGH","LBH","CASC6","SPAG17","OPRM1","TAC3","CALB2",
+                     "SST","CHRNA4","BAGE2","NPY","HPGD","B3GAT2","KLHDC8A","NPM1P10","GXYLT2","STK32A","CALB1","ADGRG6","FRZB","TH","MIR548F2","NMU","CRHBP","NMBR","CUX2",
+                     "PVALB","LGR5","MEPE","WFDC2","SULF1","SCUBE3",
+                     "PAX6","CDH12","TNFAIP8L3",
+                     "LHX6","GLP1R",
+                     "LAMP5","LCP2","DBP","CA1",
+                     "ADARB2","MC4R")
+
+DimPlot(Inc.combined, reduction = "tsne",pt.size = 0.5,label = T)+NoLegend()
+DimPlot(Inc.combined, reduction = "umap",pt.size = 0.5,label = T)+NoLegend()
+
+DimPlot(Inc.combined, reduction = "tsne",pt.size = 0.5,split.by = "seurat_clusters",ncol = 6)+NoLegend()
+
+DotPlot(Inc.combined,features = c(Inc.sub.markers,"MBP","MOG"),assay = "RNA")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+
+
+pdf("pig GABAergicN subtypes marker.pdf",height = 8,width = 12)
+DotPlot(Inc.combined,features = c(Inc.sub.markers2,"MBP","MOG"),assay = "RNA",group.by = "anno_sub")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+DefaultAssay(Inc.combined) <- "RNA"
+Inc.combined[["percent.mt"]] <- PercentageFeatureSet(Inc.combined, pattern = "^MT-")
+VlnPlot(Inc.combined, features = c("nFeature_RNA", "nCount_RNA"), ncol = 1,pt.size = 0)
+
+id <- as.character(Inc.combined$seurat_clusters)
+id[which(id %in% c(0,5))] <- "Inc PVALB SULF1"
+id[which(id %in% c(7))] <- "Inc PVALB ADAMTS5"
+
+id[which(id %in% c(4))] <- "Inc VIP ADARB2"
+
+id[which(id %in% c(2))] <- "Inc SST KLF5"
+id[which(id %in% c(8))] <- "Inc SST HMGN4"
+id[which(id %in% c(9))] <- "Inc SST RUNX1"
+
+id[which(id %in% c(3))] <- "Inc LAMP5 GFRAL"
+id[which(id %in% c(6))] <- "Inc LAMP5 ADARB2"
+
+id[which(id %in% c(10))] <- "Not GABA"
+id[which(id %in% c(1))] <- "Inc TRPC4 SULF1"
+unique(id)
+Inc.combined$anno_sub <- id
+
+Inc.combined <- SetIdent(Inc.combined,value = "anno_sub")
+Inc.markers <- FindAllMarkers(Inc.combined,assay = "RNA",slot = "data",min.pct = 0.25,logfc.threshold = 0.25,only.pos = T)
+Inc.markers <- Inc.markers[which(Inc.markers$p_val_adj < 0.05),]
+View(Inc.markers[which(Inc.markers$cluster == 1),])
+Inc.sub.markers2 <- c("GAD1","GAD2",
+                      "VIP","ADARB2",
+                      "SST","RUNX1","KLF5","HMGN4",
+                      "PVALB","SULF1","ADAMTS5",
+                      "LAMP5","GFRAL",
+                      "TRPC4")
+
+pdf("Pig GABA subtype marker.pdf",height = 4,width = 8)
+DotPlot(Inc.combined,features = Inc.sub.markers2,assay = "RNA",group.by = "anno_sub")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+pdf("pig GABAergic tsne.pdf",height = 8,width = 8)
+DimPlot(Inc.combined,group.by = "anno_sub",reduction = "tsne",label = T)+NoLegend()
+dev.off()
+
+pdf("pig GABAergic QC.pdf",height = 10,width = 10)
+VlnPlot(Inc.combined, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 1,pt.size = 0,group.by = "anno_sub")
+dev.off()
+## hclust
+mtr <- NA
+for (i in unique(Inc.combined$anno_sub)[-10]) {
+  da <- Inc.combined@assays$RNA@data[rownames(Inc.combined@assays$integrated),which(Inc.combined$anno_sub == i)]
+  mtr <- cbind(mtr,rowMeans(as.matrix(da)))
+}
+mtr <- mtr[,-1]
+colnames(mtr) <- unique(Inc.combined$anno_sub)[-10]
+sampleTree <- hclust(dist(t(mtr)),method = "average")
+plot(sampleTree, main = "GABAergic neuron subtypes clustering", sub="", xlab="")
+saveRDS(Inc.combined,file = "Inc.combined.rds")
+
+Inc.combined2 <- subset(Inc.combined,cells = colnames(Inc.combined@assays$RNA)[-which(Inc.combined$anno_sub == "Not GABA")])
+DimPlot(Inc.combined2,group.by = "anno_sub",reduction = "tsne",label = T)+NoLegend()
+
+saveRDS(Inc.combined2,file = "Inc.combined(deNotGABA).rds")
+

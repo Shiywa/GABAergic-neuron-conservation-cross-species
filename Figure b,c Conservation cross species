@@ -425,3 +425,135 @@ dev.off()
 
 saveRDS(conser.h2m,file = "conservation_each100_human&pig.rds")
 ##
+
+### Figure 1 b ####
+library(Seurat)
+library(RColorBrewer)
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/Figure/Figure1")
+h2m <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&mouse/conservation_each100_human&mouse.rds")
+h2m$Species <- h2m$orig.ident
+h2m$Species[grep("Human",h2m$Species)] <- "Human"
+h2m$Species[grep("Mouse",h2m$Species)] <- "Mouse"
+h2m$Cluster <- paste(h2m$anno_sub,"(",h2m$Species,")",sep = "")
+
+p1 <- DimPlot(h2m,group.by = "Species",label = F,reduction = "tsne",cols = c("#377EB8","#E41A1C"))+NoLegend() ## blue = human, red = mouse
+p2 <- DimPlot(h2m,reduction = "tsne",group.by = "Cluster",label = TRUE,repel = TRUE)+NoLegend()
+pdf("Figure1b_h2m_tsne_alignment.pdf",height = 10,width = 20)
+p1+p2
+dev.off()
+
+h2p <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&pig/conservation_each100_human&pig.rds")
+h2p$Species <- h2p$orig.ident
+h2p$Species[grep("Human",h2p$Species)] <- "Human"
+h2p$Species[grep("Pig",h2p$Species)] <- "Pig"
+h2p$Cluster <- paste(h2p$anno_sub,"(",h2p$Species,")",sep = "")
+
+p1 <- DimPlot(h2p,group.by = "Species",label = F,reduction = "tsne",cols = c("#377EB8","#4DAF4A"))+NoLegend() ## blue = human, red = mouse
+p2 <- DimPlot(h2p,group.by = "Cluster",label = TRUE,reduction = "tsne",repel = T)+NoLegend()
+pdf("Figure1b_h2p_tsne_alignment.pdf",height = 10,width = 20)
+p1+p2
+dev.off()
+
+h2ma <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&macaque/conservation_each100_human&macaque.rds")
+h2ma$Species <- h2ma$orig.ident
+h2ma$Species[grep("Human",h2ma$Species)] <- "Human"
+h2ma$Species[grep("Macaque",h2ma$Species)] <- "Macaque"
+h2ma$Cluster <- paste(h2ma$anno_sub,"(",h2ma$Species,")",sep = "")
+
+p1 <- DimPlot(h2ma,group.by = "Species",label = F,reduction = "tsne",cols = c("#377EB8","#984EA3"))+NoLegend() ## blue = human, red = mouse
+p2 <- DimPlot(h2ma,group.by = "Cluster",label = T,reduction = "tsne",repel = T)+NoLegend()
+pdf("Figure1b_h2ma_tsne_alignment.pdf",height = 10,width = 20)
+p1+p2
+dev.off()
+
+## Figure c 
+## conservation human and mouse
+resample_human <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&mouse/human_100_eachCluster.rds")
+resample_mouse <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&mouse/mouse_100_eachCluster.rds")
+conser.h2m <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&mouse/conservation_each100_human&mouse.rds")
+
+conser_mtr <- matrix(0,ncol = length(unique(resample_human$anno_sub)),nrow = length(unique(resample_mouse$anno_sub)))
+rownames(conser_mtr) <- sort(unique(resample_mouse$anno_sub))
+colnames(conser_mtr) <- sort(unique(resample_human$anno_sub))
+
+for (i in rownames(conser_mtr)) {
+  for (j in colnames(conser_mtr)) {
+    a <- conser.h2m$integrated_snn_res.2[which(conser.h2m$anno_sub == i)]
+    b <- conser.h2m$integrated_snn_res.2[which(conser.h2m$anno_sub == j)]
+    a <- as.character(a)
+    b <- as.character(b)
+    int <- intersect(unique(a),unique(b))
+    if(length(int) > 0){
+      #      n = min(length(which(a %in% int)),length(which(b %in% int)))
+      #      conser_mtr[i,j] <- n/min(length(which(conser.h2m$anno_sub == i)),length(which(conser.h2m$anno_sub == j)))
+      conser_mtr[i,j] <- min(length(which(a %in% int))/length(which(conser.h2m$anno_sub == i)),length(which(b %in% int))/length(which(conser.h2m$anno_sub == j)))
+    }
+  }
+}
+h_m_mtr <- conser_mtr
+
+## conservation human and pig
+resample_pig <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&pig/pig_100_eachCluster.rds")
+conser.h2m <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&pig/conservation_each100_human&pig.rds")
+
+conser_mtr <- matrix(0,ncol = length(unique(resample_human$anno_sub)),nrow = length(unique(resample_pig$anno_sub)))
+rownames(conser_mtr) <- sort(unique(resample_pig$anno_sub))
+colnames(conser_mtr) <- sort(unique(resample_human$anno_sub))
+
+for (i in rownames(conser_mtr)) {
+  for (j in colnames(conser_mtr)) {
+    a <- conser.h2m$integrated_snn_res.2[intersect(which(conser.h2m$anno_sub == i),grep("Pig",conser.h2m$orig.ident))]
+    b <- conser.h2m$integrated_snn_res.2[intersect(which(conser.h2m$anno_sub == j),grep("Human",conser.h2m$orig.ident))]
+    a <- as.character(a)
+    b <- as.character(b)
+    int <- intersect(unique(a),unique(b))
+    if(length(int) > 0){
+      #      n = min(length(which(a %in% int)),length(which(b %in% int)))
+      #      conser_mtr[i,j] <- n/min(length(which(conser.h2m$anno_sub == i)),length(which(conser.h2m$anno_sub == j)))
+      conser_mtr[i,j] <- min(length(which(a %in% int))/length(which(conser.h2m$anno_sub == i)),length(which(b %in% int))/length(which(conser.h2m$anno_sub == j)))
+    }
+  }
+}
+
+h_p_mtr <- conser_mtr
+
+## human and macaque conservation
+resample_macaque <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&macaque/macaque_100_eachCluster.rds")
+conser.h2m <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&macaque/conservation_each100_human&macaque.rds")
+
+conser_mtr <- matrix(0,ncol = length(unique(resample_human$anno_sub)),nrow = length(unique(resample_macaque$anno_sub)))
+rownames(conser_mtr) <- sort(unique(resample_macaque$anno_sub))
+colnames(conser_mtr) <- sort(unique(resample_human$anno_sub))
+
+for (i in rownames(conser_mtr)) {
+  for (j in colnames(conser_mtr)) {
+    a <- conser.h2m$integrated_snn_res.1.5[intersect(which(conser.h2m$anno_sub == i),grep("Macaque",conser.h2m$orig.ident))]
+    b <- conser.h2m$integrated_snn_res.1.5[intersect(which(conser.h2m$anno_sub == j),grep("Human",conser.h2m$orig.ident))]
+    a <- as.character(a)
+    b <- as.character(b)
+    int <- intersect(unique(a),unique(b))
+    if(length(int) > 0){
+      #      n = min(length(which(a %in% int)),length(which(b %in% int)))
+      #      conser_mtr[i,j] <- n/min(length(which(conser.h2m$anno_sub == i)),length(which(conser.h2m$anno_sub == j)))
+      conser_mtr[i,j] <- min(length(which(a %in% int))/length(which(conser.h2m$anno_sub == i)),length(which(b %in% int))/length(which(conser.h2m$anno_sub == j)))
+    }
+  }
+}
+
+h_ma_mtr <- conser_mtr
+
+rownames(h_m_mtr) <- paste(rownames(h_m_mtr),"(mouse)",sep = " ")
+rownames(h_p_mtr) <- paste(rownames(h_p_mtr),"(pig)",sep = " ")
+rownames(h_ma_mtr) <- paste(rownames(h_ma_mtr),"(macaque)",sep = " ")
+
+all.mtr <- rbind(h_m_mtr,h_p_mtr,h_ma_mtr)
+saveRDS(all.mtr,file = "human2mouse&pig&macaque_conservation_matrix.rds")
+
+pdf("Heatmap_human&mouse_pig_macque_conservation.pdf",height = 9,width = 9)
+Heatmap(all.mtr,col = colorRamp2(c(0,0.5,1), c("white", "grey", "black")),
+        cluster_rows = T,cluster_columns = T,heatmap_width = unit(1, "npc"),
+        heatmap_height = unit(1,"npc"),width = 1,height = 1,row_title = "human vs mouse pig macaque",
+        column_title = "human",name = "Cluster overlap",
+        border = T#,column_split = col_split,row_split = row_split
+)
+dev.off()

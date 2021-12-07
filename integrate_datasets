@@ -1,0 +1,253 @@
+### integrate datasets by species 
+## Firstly, use CreateSeuratObject to make object using each dataset
+
+## human 
+h1 <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_ASD_Ctrl/Vthunter_110094_PFC_20210615.rds")
+h2 <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_ASD_Ctrl/Vthunter_110093_ACC_20210615.rds")
+h3 <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_macaque/adult_macaque_human/human/rds/human_DFC_integrate.rds")
+meta1 <- h1@meta.data
+meta1 <- meta1[,c(1,6,5)]
+meta1$orig.ident <- as.character(meta1$orig.ident)
+meta1$sample <- as.character(meta1$sample)
+meta1$cluster <- as.character(meta1$cluster)
+
+meta2 <- h2@meta.data[,c(1,6,5)]
+meta2$orig.ident <- as.character(meta2$orig.ident)
+meta2$sample <- as.character(meta2$sample)
+meta2$cluster <- as.character(meta2$cluster)
+
+meta3 <- h3@meta.data[,c(1,1,8)]
+colnames(meta3) <- colnames(meta1)
+meta3$orig.ident <- "Human Brain"
+meta3$cluster
+
+### 
+meta.all <- rbind(meta1,meta2,meta3)
+all.gene <- c(rownames(h1),rownames(h2),rownames(h3@assays$RNA))
+gene.sta <- as.data.frame(table(all.gene))
+itac.gene <- as.character(gene.sta$all.gene[which(gene.sta$Freq >= 1)])
+
+h1.d <- CreateSeuratObject(h1@assays$RNA@counts[intersect(rownames(h1@assays$RNA@counts),itac.gene),])
+h2.d <- CreateSeuratObject(h2@assays$RNA@counts[intersect(rownames(h2@assays$RNA@counts),itac.gene),])
+h3.d <- CreateSeuratObject(h3@assays$RNA@counts[intersect(rownames(h3@assays$RNA@counts),itac.gene),])
+
+rownames(h1.d)
+
+species.combined <- merge(h1.d,y = c(h2.d,h3.d))
+species.combined <- AddMetaData(species.combined,metadata = meta.all)
+species.combined.list <- SplitObject(species.combined, split.by = "sample")
+species.combined.list <- lapply(X = species.combined.list, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 3000)
+})
+features <- SelectIntegrationFeatures(object.list = species.combined.list)
+species.combined.list <- lapply(X = species.combined.list, FUN = function(x) {
+  x <- ScaleData(x, features = features, verbose = FALSE)
+  x <- RunPCA(x, features = features, verbose = FALSE)
+})
+species.anchors <- FindIntegrationAnchors(object.list = species.combined.list, anchor.features = features, reduction = "rpca")
+species.combined <- IntegrateData(anchorset = species.anchors)
+DefaultAssay(species.combined) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+species.combined <- ScaleData(species.combined, verbose = FALSE)
+species.combined <- RunPCA(species.combined, npcs = 30, verbose = FALSE)
+species.combined <- RunUMAP(species.combined, reduction = "pca", dims = 1:30)
+species.combined <- RunTSNE(species.combined, reduction = "pca", dims = 1:30)
+species.combined <- FindNeighbors(species.combined, reduction = "pca", dims = 1:30)
+species.combined <- FindClusters(species.combined, resolution = 0.5)
+saveRDS(species.combined, file = "human_integrate.rds")
+
+## mouse
+library(Seurat)
+## integrate mouse
+m1 <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/mouse/Mouse_single_PF.obj.rds")
+m2 <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/mouse_AD_WT/rds/7_mouse_AD_WT_mouseGene.rds")
+
+meta4 <- m1@meta.data[,c(1,1,16)]
+meta4 <- as.data.frame(meta4)
+meta4$orig.ident <- "Mouse Brain PFC"
+colnames(meta4) <- c("orig.ident","sample","cluster")
+
+meta7 <- m2@meta.data[,c(1,1,6)]
+meta7 <- as.data.frame(meta7)
+colnames(meta7) <- c("orig.ident","sample","cluster")
+meta7$orig.ident <- "Mouse Brain CTX"
+
+m.all <- merge(m1,m2)
+DefaultAssay(m.all) <- "RNA"
+meta.all <- rbind(meta4,meta7)
+m.all <- AddMetaData(m.all,metadata = meta.all)
+table()
+m.all.list <- SplitObject(m.all, split.by = "sample")
+m.all.list <- lapply(X = m.all.list, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 3000)
+})
+features <- SelectIntegrationFeatures(object.list = m.all.list)
+m.all.list <- lapply(X = m.all.list, FUN = function(x) {
+  x <- ScaleData(x, features = features, verbose = FALSE)
+  x <- RunPCA(x, features = features, verbose = FALSE)
+})
+species.anchors <- FindIntegrationAnchors(object.list = m.all.list, anchor.features = features, reduction = "rpca")
+m.all <- IntegrateData(anchorset = species.anchors)
+DefaultAssay(m.all) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+m.all <- ScaleData(m.all, verbose = FALSE)
+m.all <- RunPCA(m.all, npcs = 30, verbose = FALSE)
+m.all <- RunUMAP(m.all, reduction = "pca", dims = 1:30)
+m.all <- RunTSNE(m.all, reduction = "pca", dims = 1:30)
+m.all <- FindNeighbors(m.all, reduction = "pca", dims = 1:30)
+m.all <- FindClusters(m.all, resolution = 0.5)
+saveRDS(m.all, file = "mouse_integrate.rds")
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_mouse")
+
+## macaque
+
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_macaque")
+
+load("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_macaque/adult_macaque_human/macaque/Sestan.adultMonkeyNuclei.rawUMI.Psychencode.Rdata")
+load("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_macaque/adult_macaque_human/macaque/Sestan.adultMonkeyNuclei.Psychencode.Rdata")
+rownames(umi2.raw) <- apply(as.data.frame(rownames(umi2.raw)),1,function(x) strsplit(x,"\\|")[[1]][2])
+## 
+ma1 <- CreateSeuratObject(counts=umi2.raw,min.cells=3,min.features = 200)
+ma1 <- AddMetaData(ma1,metadata = meta2)
+meta6 <- ma1@meta.data[,c(1,1,7)]
+colnames(meta6) <- c("orig.ident","sample","cluster")
+meta6$orig.ident <- "Macaque Brain DFC"
+meta6$sample <- as.character(meta6$sample)
+meta6$cluster <- as.character(meta6$cluster)
+
+ma2.da <- Read10X("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/macaque2/data",gene.column = 1)
+head(rownames(ma2.da),10)
+ma2 <- CreateSeuratObject(counts=ma2.da,min.cells = 3,min.features = 200)
+
+meta11 <- ma2@meta.data[,c(1,1,1)]
+colnames(meta11) <- colnames(meta6)
+meta11$orig.ident <- "Macaque Brain ACC"
+meta11$sample <- "ACC"
+meta11$cluster <- "unanno"
+
+ma.all <- merge(ma1,ma2)
+DefaultAssay(ma.all) <- "RNA"
+meta.all <- rbind(meta6,meta11)
+ma.all <- AddMetaData(ma.all,metadata = meta.all)
+
+id.tb.maca <- read.table("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_macaque/macaque_homo_id_trans.txt",header = T,sep = "\t")
+colnames(id.tb.maca)<-c(paste("cn",1:5,sep=""))
+id.tb.maca<-id.tb.maca[which(id.tb.maca$cn5=="ortholog_one2one"),]
+ma2h <- id.tb.maca$cn2
+names(ma2h) <- id.tb.maca$cn3
+ma2h[ma2h == ""] <- NA
+raw.maca.fea <- rownames(ma.all@assays$RNA@counts)
+new.maca.fea <- c()
+for (old_name in raw.maca.fea) {
+  if(!is.na(ma2h[old_name])){
+    new.maca.fea <- c(new.maca.fea,ma2h[old_name])
+  }else {new.maca.fea <- c(new.maca.fea,old_name)}
+}
+
+rownames(ma.all@assays$RNA@counts) <- as.character(new.maca.fea)
+all.mtr <- ma.all@assays$RNA@counts
+all.meta <- ma.all@meta.data
+
+ma.all2 <- CreateSeuratObject(all.mtr)
+ma.all2 <- AddMetaData(ma.all2,metadata = all.meta)
+rm(ma.all)
+ma.all.list <- SplitObject(ma.all2, split.by = "sample")
+ma.all.list <- lapply(X = ma.all.list, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 3000)
+})
+features <- SelectIntegrationFeatures(object.list = ma.all.list)
+ma.all.list <- lapply(X = ma.all.list, FUN = function(x) {
+  x <- ScaleData(x, features = features, verbose = FALSE)
+  x <- RunPCA(x, features = features, verbose = FALSE)
+})
+species.anchors <- FindIntegrationAnchors(object.list = ma.all.list, anchor.features = features, reduction = "rpca")
+ma.all <- IntegrateData(anchorset = species.anchors)
+DefaultAssay(ma.all) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+ma.all <- ScaleData(ma.all, verbose = FALSE)
+ma.all <- RunPCA(ma.all, npcs = 30, verbose = FALSE)
+ma.all <- RunUMAP(ma.all, reduction = "pca", dims = 1:30)
+ma.all <- RunTSNE(ma.all, reduction = "pca", dims = 1:30)
+ma.all <- FindNeighbors(ma.all, reduction = "pca", dims = 1:30)
+ma.all <- FindClusters(ma.all, resolution = 0.5)
+
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_macaque/")
+saveRDS(ma.all, file = "macaque_integrate.rds")
+
+## pig
+library(Seurat)
+## pig
+p1 <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/pig/19_Pig_Frontal/Vthunter_0069_Celltype_20210622.rds")
+meta5 <- p1@meta.data[,c(1,1,12)]
+meta5 <- as.data.frame(meta5)
+colnames(meta5) <- c("orig.ident","sample","cluster")
+meta5$orig.ident <- "Pig Brain FC"
+meta5$sample <- as.character(meta5$sample)
+meta5$cluster <- as.character(meta5$cluster)
+
+p2 <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/pig/19_Pig_Temporal/Vthunter_0073_Celltype_20210622.rds")
+meta8 <- p2@meta.data[,c(1,1,12)]
+meta8 <- as.data.frame(meta8)
+colnames(meta8) <- colnames(meta5)
+meta8$orig.ident <- "Pig Brain TC"
+meta8$sample <- as.character(meta8$sample)
+meta8$cluster <- as.character(meta8$cluster)
+
+p3 <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/pig/19_Pig_Parietal/Vthunter_0071_Celltype_20210622.rds")
+meta9 <- p3@meta.data[,c(1,1,12)]
+meta9 <- as.data.frame(meta9)
+colnames(meta9) <- colnames(meta5)
+meta9$orig.ident <- "Pig Brain PC"
+meta9$sample <- as.character(meta9$sample)
+meta9$cluster <- as.character(meta9$cluster)
+
+p4 <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/pig/19_Pig_Occipital/Vthunter_0070_Celltype_20210622.rds")
+meta10 <- p4@meta.data[,c(1,1,12)]
+meta10 <- as.data.frame(meta10)
+colnames(meta10) <- colnames(meta5)
+meta10$orig.ident <- "Pig Brain OC"
+meta10$sample <- as.character(meta10$sample)
+meta10$cluster <- as.character(meta10$cluster)
+
+p.all <- merge(p1,y = c(p2,p3,p4))
+DefaultAssay(p.all) <- "RNA"
+meta.all <- rbind(meta5,meta8,meta9,meta10)
+p.all <- AddMetaData(p.all,metadata = meta.all)
+table()
+p.all.list <- SplitObject(p.all, split.by = "sample")
+p.all.list <- lapply(X = p.all.list, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 3000)
+})
+features <- SelectIntegrationFeatures(object.list = p.all.list)
+p.all.list <- lapply(X = p.all.list, FUN = function(x) {
+  x <- ScaleData(x, features = features, verbose = FALSE)
+  x <- RunPCA(x, features = features, verbose = FALSE)
+})
+species.anchors <- FindIntegrationAnchors(object.list = p.all.list, anchor.features = features, reduction = "rpca")
+p.all <- IntegrateData(anchorset = species.anchors)
+DefaultAssay(p.all) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+p.all <- ScaleData(p.all, verbose = FALSE)
+p.all <- RunPCA(p.all, npcs = 30, verbose = FALSE)
+p.all <- RunUMAP(p.all, reduction = "pca", dims = 1:30)
+p.all <- RunTSNE(p.all, reduction = "pca", dims = 1:30)
+p.all <- FindNeighbors(p.all, reduction = "pca", dims = 1:30)
+p.all <- FindClusters(p.all, resolution = 0.5)
+
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_pig/")
+saveRDS(p.all, file = "pig_integrate.rds")
+
+
+
+
+
+
+

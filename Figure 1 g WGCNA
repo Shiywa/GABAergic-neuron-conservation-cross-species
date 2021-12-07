@@ -1,0 +1,488 @@
+
+AD_Inc <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_ADPFC/AD_PFC_Inc_integrate.rds")
+Inc.Ctrl <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_human/Inc_subtype/Inc.combined(deDoublet).rds") 
+Inc.Ctrl$orig.ident
+DefaultAssay(Inc.Ctrl) <- "RNA"
+DefaultAssay(AD_Inc) <- "RNA"
+AD_Inc <- FindVariableFeatures(AD_Inc,assay = "RNA",nfeatures = 2000)
+Inc.Ctrl <- FindVariableFeatures(Inc.Ctrl,assay = "RNA",nfeatures = 2000)
+
+AD.all <- merge(AD_Inc,Inc.Ctrl)
+#AD.all2 <- CreateSeuratObject(AD.all@assays$RNA@counts,min.cells = 3)
+intersect.gene <- intersect(rownames(AD_Inc),rownames(Inc.Ctrl))
+gene.use <- union(VariableFeatures(AD_Inc),VariableFeatures(Inc.Ctrl))
+gene.use <- intersect(gene.use,intersect.gene)
+
+datadf <- as.matrix(AD.all@assays$RNA@data[gene.use,])
+
+idd1 <- AD.all@meta.data[,c("orig.ident","anno_sub")]
+idd1 <- as.data.frame(idd1)
+unique(idd1$orig.ident)
+unique(idd1$anno_sub)
+idd1$orig.ident <- gsub("SeuratProject","AD",idd1$orig.ident)
+idd1$orig.ident <- gsub("Human Brain","Normal",idd1$orig.ident)
+
+Inter.id1<- idd1
+Inter.id1<-as.data.frame(Inter.id1)
+head(Inter.id1)
+Inter.id1$CellID <- rownames(Inter.id1)
+Inter.id1$group_id <- paste(Inter.id1$orig.ident,Inter.id1$anno_sub,sep = "_")
+table(Inter.id1$group_id)
+pseudocell.size = 10 ## 15 test
+new_ids_list1 = list()
+length(unique(Inter.id1$group_id))
+for (i in seq(unique(Inter.id1$group_id))) {
+  cluster_id = unique(Inter.id1$group_id)[i]
+  cluster_cells <- Inter.id1$CellID[which(Inter.id1$group_id == cluster_id)]
+  cluster_size <- length(cluster_cells)     
+  pseudo_ids <- floor(seq_along(cluster_cells)/pseudocell.size-0.05)### floor 函数bug，通过减去0.05消除
+  pseudo_ids <- paste0(cluster_id, "_Cell", pseudo_ids)
+  names(pseudo_ids) <- sample(cluster_cells)    
+  new_ids_list1[[i]] <- pseudo_ids      
+}
+
+new_ids <- unlist(new_ids_list1)
+new_ids <- as.data.frame(new_ids)
+head(new_ids)
+new_ids_length <- table(new_ids)
+new_ids_length
+new_colnames <- rownames(new_ids)  ###add
+#gc()
+dim(datadf)
+all.data<-datadf[,as.character(new_colnames)] ###add
+all.data <- t(all.data)###add
+all.data <- all.data[,which(colSums(all.data) != 0)]
+dim(all.data)
+new.data<-aggregate(all.data,
+                    list(name=new_ids[,1]),FUN=mean)
+rownames(new.data)<-new.data$name
+new.data<-new.data[,-1]
+new_ids_length<-as.matrix(new_ids_length)##
+
+short<-which(new_ids_length<10)##
+new_good_ids<-as.matrix(new_ids_length[-short,])##
+result<-t(new.data)[,rownames(new_good_ids)]
+dim(result)
+dim(datadf)
+dim(all.data)
+rownames(result) <- colnames(all.data) ## 由于前面aggregate的时候导致基因名部分发生了改变，所以用初始的基因名进行替换
+result2 <- result
+result <- result2[which(apply(result,1,mad) > 0.01),]
+
+### 简书推荐针对基因还计算了MAD用于找到变化更大的基因，由于本矩阵创建的时候就是all high variable genes
+### 故没有选择使用MAD过滤基因
+
+#View(rownames(CMT.combined@assays$integrated@data)[-which(rownames(CMT.combined@assays$integrated@data) %in% rownames(result))])
+#View(rownames(result))
+### 转置矩阵为样本名为行名
+#head(rownames(CMT.combined.all.good@assays$integrated@data)[-which(rownames(CMT.combined.all.good@assays$integrated@data) %in% rownames(result))])
+
+### 检查是否有离群的样本
+sampleTree = hclust(dist(result), method = "average")
+plot(sampleTree, main = "Sample clustering to detect outliers", sub="", xlab="")
+
+### pickSoftThreshold用以返回一个最佳beta值，为之后adj function的参数
+library(WGCNA)
+powers = c(c(1:10), seq(from = 12, to=30, by=2))
+sft = pickSoftThreshold(result, powerVector=powers, 
+                        networkType="signed", verbose=5)
+power = sft$powerEstimate
+softPower  = power
+softPower
+power <- 6
+######################################################################################################
+par(mfrow = c(1,2))
+cex1 = 0.9
+# 横轴是Soft threshold (power)，左图纵轴代表对应的网络中log(k)与log(p(k))相关系数的平方。相关系数的平
+# 方越高，说明该网络越逼近无网路尺度的分布(non-scale)，右图的纵轴代表对应的基因模块中所有基因邻接函数
+# 的均值
+
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     xlab="Soft Threshold (power)",
+     ylab="Scale Free Topology Model Fit,signed R^2",type="n",
+     main = paste("Scale independence"))
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     labels=powers,cex=cex1,col="red")
+# 筛选标准。R-square=0.85
+abline(h=0.85,col="red")
+
+# Soft threshold与平均连通性
+plot(sft$fitIndices[,1], sft$fitIndices[,5],
+     xlab="Soft Threshold (power)",ylab="Mean Connectivity", type="n",
+     main = paste("Mean connectivity"))
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, 
+     cex=cex1, col="red")
+
+######################################################################################################
+
+#一步法网络构建：One-step network construction and module detection##
+# power: 上一步计算的软阈值
+# maxBlockSize: 计算机能处理的最大模块的基因数量 (默认5000)；
+#  4G内存电脑可处理8000-10000个，16G内存电脑可以处理2万个，32G内存电脑可
+#  以处理3万个
+#  计算资源允许的情况下最好放在一个block里面。
+# corType: pearson or bicor
+# numericLabels: 返回数字而不是颜色作为模块的名字，后面可以再转换为颜色
+# saveTOMs：最耗费时间的计算，存储起来，供后续使用
+# mergeCutHeight: 合并模块的阈值，越大模块越少
+
+#########
+type = "signed"  # 官方推荐 "signed" 或 "signed hybrid"
+corType = "pearson" # 相关性计算  官方推荐 biweight mid-correlation & bicor  corType: pearson or bicor 
+corFnc = ifelse(corType=="pearson", cor, bicor)
+corFnc
+maxPOutliers = ifelse(corType=="pearson",1,0.05) 
+# 对二元变量，如样本性状信息计算相关性时，
+# 或基因表达严重依赖于疾病状态时，需设置下面参数
+# 关联样品性状的二元变量时，设置
+robustY = ifelse(corType=="pearson",T,F)
+
+cor <- WGCNA::cor
+nGenes = ncol(result)
+nSamples = nrow(result)
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/WGCNA_AD_Ctrl")
+net = blockwiseModules(t(result), power = power, maxBlockSize = nGenes,#nGenes
+                       TOMType = type, minModuleSize = 10,
+                       reassignThreshold = 0, mergeCutHeight = 0.25,
+                       numericLabels = TRUE, pamRespectsDendro = FALSE,
+                       saveTOMs=TRUE, corType = "pearson", 
+                       maxPOutliers=maxPOutliers, loadTOMs=TRUE,
+                       saveTOMFileBase = paste0("result_",type ,".tom"),
+                       verbose = 3)
+
+#### visualization #######
+# 灰色的为**未分类**到模块的基因。
+# Convert labels to colors for plotting
+moduleLabels = net$colors
+moduleColors = labels2colors(moduleLabels)
+unique(moduleColors)
+
+color.label <- data.frame(moduleLabels,moduleColors)
+color.label[!duplicated(color.label),]
+# Plot the dendrogram and the module colors underneath
+# 如果对结果不满意，还可以recutBlockwiseTrees，节省计算时间
+pdf("dendrogram module.pdf",height = 8,width = 8)
+plotDendroAndColors(net$dendrograms[[1]], moduleColors[net$blockGenes[[1]]],
+                    "Module colors",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05)
+dev.off()
+
+# module eigengene, 可以绘制线图，作为每个模块的基因表达趋势的展示
+MEs = net$MEs
+
+### 不需要重新计算，改下列名字就好
+### 官方教程是重新计算的，起始可以不用这么麻烦
+MEs_col = MEs
+library(stringr)
+colnames(MEs_col) = paste0("ME", labels2colors(
+  as.numeric(str_replace_all(colnames(MEs),"ME",""))))
+MEs_col = orderMEs(MEs_col)
+
+# 根据基因间表达量进行聚类所得到的各模块间的相关性图
+# marDendro/marHeatmap 设置下、左、上、右的边距
+head(MEs_col)
+#?plotEigengeneNetworks
+pdf("eigen gene network.pdf",height = 8,width = 8)
+plotEigengeneNetworks(MEs, "Eigengene adjacency heatmap", 
+                      marDendro = c(3,4,2,4),
+                      marHeatmap = c(3,3,2,1),
+                      plotDendrograms = T,
+                      xLabelsAngle = 90)
+dev.off()
+
+load(net$TOMFiles, verbose=T)
+
+## Loading objects:
+##   TOM
+
+TOM <- as.matrix(TOM)
+TOM[1:4,1:4]
+#dim(TOM2)
+dissTOM = 1-TOM
+# Transform dissTOM with a power to make moderately strong 
+# connections more visible in the heatmap
+plotTOM = dissTOM^softPower
+# Set diagonal to NA for a nicer plot
+diag(plotTOM) = NA
+
+# Call the plot function
+table(moduleColors)
+# 这一部分特别耗时，行列同时做层级聚类，目前TOMplot调用的heatmap函数内置颜色标识发生了改变，红色代表大
+# 黄色代表小，所以不相似度越小代表相似度越大，
+pdf("TOM plot.pdf",height = 8,width = 8)
+TOMplot(TOM^7, net$dendrograms[[1]], moduleColors[net$blockGenes[[1]]], 
+        main = "Network heatmap plot, all genes")
+dev.off()
+
+# 构造表型数据，这里的表型数据只有left\right以及cluster 0~16
+#new_ids <- new_ids[rownames(dataExpr),]
+new_ids$batch <- idd1[rownames(new_ids),"orig.ident"]
+new_ids$cellType <- idd1[rownames(new_ids),"anno_sub"]
+
+new_ids2 <- new_ids[!duplicated(new_ids$new_ids),]
+new_ids3 <- new_ids2[,-1]
+rownames(new_ids3) <- new_ids2$new_ids
+new_ids3 <- new_ids3[colnames(result),]
+
+change_impute_ident <- c(1:length(unique(new_ids3$batch))) 
+names(change_impute_ident) <-  unique(new_ids3$batch)
+change_raw_ident <- c(1:length(unique(new_ids3$cellType))) 
+names(change_raw_ident) <-  unique(new_ids3$cellType)
+
+new.meta <- data.frame(cellType = change_raw_ident[new_ids3$cellType],
+                       batch = change_impute_ident[new_ids3$batch]
+                       )
+names(new.meta) <- names(new_ids3)
+
+# 计算mudule与构建好的各个表型数据的相关性,以下是两种不同的绘图模式
+moduleTraitCor_noFP <- cor(MEs_col, new.meta, use = "p");
+moduleTraitPvalue_noFP = corPvalueStudent(moduleTraitCor_noFP, nSamples); 
+textMatrix_noFP <- paste(signif(moduleTraitCor_noFP, 2), "\n(", signif(moduleTraitPvalue_noFP, 1), ")", sep = ""); 
+pdf("moudle trait relationships.pdf")
+par(mar = c(10, 8.5, 2, 2)); 
+labeledHeatmap(Matrix = moduleTraitCor_noFP, 
+               xLabels = names(new.meta), 
+               yLabels = names(MEs_col), 
+               ySymbols = names(MEs_col), 
+               colorLabels = FALSE, 
+               colors = blueWhiteRed(50), 
+               textMatrix = textMatrix_noFP,
+               setStdMargins = FALSE, 
+               cex.text = 0.65, 
+               zlim = c(-1,1), 
+               main = paste("Module-trait relationships")) 
+dev.off()
+library(pheatmap)
+cor_ADR <- signif(WGCNA::cor(new.meta,MEs_col,use="p",method="pearson"),5)
+
+p.values <- corPvalueStudent(cor_ADR,nSamples=nrow(new.meta))
+
+pdf("module & phenotype cor.pdf")
+pheatmap(cor_ADR,display_numbers = matrix(ifelse(p.values <= 0.01, "**", ifelse(p.values<= 0.05 ,"*"," ")), nrow(p.values)),fontsize=18)
+dev.off()
+
+##
+ADJ1=abs(cor(t(result),use="p"))^softPower
+Alldegrees1=intramodularConnectivity(ADJ1, moduleColors) 
+head(Alldegrees1)
+
+datKME=signedKME(t(result), MEs, outputColumnName="MM.")
+datKME[1:4,1:4]
+####### get moudle hub genes ########
+color.label2 <- color.label[!duplicated(color.label),]
+color.label2$moduleLabels <- paste("MM",color.label2$moduleLabels,sep = ".")
+label <- color.label2$moduleColors
+names(label) <- color.label2$moduleLabels
+datKME2 <- datKME
+colnames(datKME2) <- label[colnames(datKME2)]
+dir.create("module hub genes")
+setwd("module hub genes")
+for (i in colnames(datKME2)[-12]) {
+  FilterGenes=  datKME2[abs(datKME2[,i]) >.8,]  ## turquoise
+  FilterGenes <- FilterGenes[order(FilterGenes[,i],decreasing = T),]
+  write.table(rownames(FilterGenes),paste("module ",i," hub genes.txt",sep = ""),quote = F,col.names = F,row.names = F)
+}
+
+#FilterGenes=  datKME[abs(datKME$MM.1)>.8,]  ## turquoise
+#FilterGenes <- FilterGenes[order(FilterGenes$MM.1,decreasing = T),]
+#head(FilterGenes)
+#write.table(rownames(FilterGenes),paste("module ",module," hub genes.txt",sep = ""),quote = F,col.names = F,row.names = F)
+
+
+##############
+setwd("../")
+dir.create("module all genes")
+setwd("module all genes")
+for (i in unique(moduleColors)) {
+  module = i
+  # Select module probes
+  probes = colnames(t(result)) ## 我们例子里面的probe就是基因名
+  inModule = (moduleColors==module);
+  modProbes = probes[inModule]; 
+  write.table(modProbes,paste(i," module genes.txt",sep = ""),quote = F,row.names = F,col.names = F)
+}
+
+g_a <- c()
+for (i in unique(moduleColors)) {
+  module = i
+  probes = colnames(t(result)) ## 我们例子里面的probe就是基因名
+  inModule = (moduleColors==module);
+  modProbes = probes[inModule]; 
+  modProbes2 <- str_c(modProbes,collapse = ",")
+  g_a <- c(g_a,modProbes2)
+}
+
+mod_genes <- data.frame(unique(moduleColors),g_a)
+write.table(mod_genes,"all module genes metascape.txt",quote = F,row.names = F,col.names = F,sep = "\t")
+#########
+library(WGCNA)
+#View(rownames(dataExpr))
+
+clabel <- apply(as.data.frame(rownames(t(result))),1,function(x) strsplit(x,"_C")[[1]][1])
+setwd("../")
+dir.create("module genes plot")
+setwd("module genes plot")
+for (i in colnames(datKME2)[-8]) {
+  which.module= i; 
+  ME=MEs_col[, paste("ME",which.module, sep="")]
+  pdf(paste(i,"expression pattern.pdf",sep = "_"),width = 80,height = 30)
+  par(mfrow=c(2,1), mar=c(0,17,12,15.5))
+  #par(mfrow=c(2,1), mar=c(0,6,4,4.4))
+  plotMat(t(scale(t(result)[,moduleColors==which.module ])),
+          nrgcols=30,rlabels=F,clabels = clabel,rcols=which.module,
+          main=which.module, cex.main=2)
+  par(mar=c(2,2.3,0.5,0.8))
+  #par(mar=c(2,0.1,0.5,0.1))
+  barplot(ME, col=which.module, main="", cex.main=2,
+          ylab="eigengene expression",xlab="array sample")
+  dev.off()
+}
+
+####
+
+View(color.label)
+unique(color.label$moduleColors)
+unique(idd1$anno_sub)
+idd1$celltype <- paste(idd1$orig.ident,idd1$anno_sub,sep = "_")
+mtr <- matrix(0,nrow = length(unique(color.label$moduleColors)[-7]),ncol = length(unique(idd1$celltype)))
+rownames(mtr) <- unique(color.label$moduleColors)[-7]
+colnames(mtr) <- unique(idd1$celltype)
+for (i in unique(color.label$moduleColors)[-7]) {
+  for (j in unique(idd1$celltype)) {
+    da <- AD.all@assays$RNA@data[rownames(color.label)[which(color.label$moduleColors == i)],rownames(idd1)[which(idd1$celltype == j)]]
+    mtr[i,j] <- mean(rowMeans(da))
+  }
+}
+library(ComplexHeatmap)
+p1 <- pheatmap(mtr,scale = "column",cellheight = 15,cellwidth = 15)
+
+AD.risk <- read.table("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/AD_risk_GWAS.txt")
+
+pv.all <- c()
+num.all <- c()
+for (i in unique(color.label$moduleColors)[-7]) {
+  g <- rownames(color.label)[which(color.label$moduleColors == i)]
+  N <- 20000
+  M = length(AD.risk$V1)
+  n <- length(g)
+  k = length(intersect(g,AD.risk$V1))
+  pv <- 1-phyper(k-1,M,N-M,n)
+  pv.all <- c(pv.all,pv)
+  num.all <- c(num.all,k)
+}
+num.all <- as.matrix(num.all)
+
+rownames(num.all) <- unique(color.label$moduleColors)[-7]
+colnames(num.all) <- "AD.risk"
+
+if (!is.null(pv.all)){
+  ssmt <- pv.all< 0.01
+  pv.all[ssmt] <-'**'
+  smt <- pv.all >0.01& pv.all <0.05
+  pv.all[smt] <- '*'
+  pv.all[!ssmt&!smt]<- ''
+} else {
+  pv.all <- F
+}
+pv.all
+pv.all <- as.matrix(pv.all)
+rownames(pv.all) <- unique(color.label$moduleColors)[-7]
+colnames(pv.all) <- "AD.risk"
+
+p2 <- pheatmap(num.all,color = colorRampPalette((brewer.pal(n = 7, name ="RdPu")))(100),
+               display_numbers = pv.all,fontsize_number = 12,number_color = "white",cellheight = 15,cellwidth = 15)
+pdf("risk genes number heatmap.pdf",height = 4,width = 3)
+p2
+dev.off()
+
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/WGCNA_AD_Ctrl")
+pdf("WGCNA_module_expression&enrich.pdf",height = 7,width = 9)
+p1+p2
+dev.off()
+
+##
+unique(AD.all$anno_sub2)
+idd1$anno_sub2 <- idd1$anno_sub
+idd1$anno_sub2[grep("Inc SST",idd1$anno_sub2)] <- "Inc SST"
+idd1$anno_sub2[grep("Inc VIP",idd1$anno_sub2)] <- "Inc VIP"
+idd1$anno_sub2[grep("Inc LAMP5",idd1$anno_sub2)] <- "Inc LAMP5"
+idd1$anno_sub2[grep("Inc PVALB",idd1$anno_sub2)] <- "Inc PVALB"
+
+idd1$celltype2 <- paste(idd1$orig.ident,idd1$anno_sub2,sep = "_")
+mtr <- matrix(0,nrow = length(unique(color.label$moduleColors)[-7]),ncol = length(unique(idd1$celltype2)))
+rownames(mtr) <- unique(color.label$moduleColors)[-7]
+colnames(mtr) <- unique(idd1$celltype2)
+for (i in unique(color.label$moduleColors)[-7]) {
+  for (j in unique(idd1$celltype2)) {
+    da <- AD.all@assays$RNA@data[rownames(color.label)[which(color.label$moduleColors == i)],rownames(idd1)[which(idd1$celltype2 == j)]]
+    mtr[i,j] <- mean(rowMeans(da))
+  }
+}
+p3 <- pheatmap(mtr,scale = "column",cellheight = 15,cellwidth = 15)
+p3
+pdf("WGCNA_module_expression&enrich_majorCluster.pdf",height = 7,width = 7)
+p3+p2
+dev.off()
+
+####
+unique(AD.all$anno_sub2)
+AD.all$orig.ident <- gsub("SeuratProject","AD",AD.all$orig.ident)
+AD.all$orig.ident <- gsub("Human Brain","Normal",AD.all$orig.ident)
+AD.all$DEG_group <- paste(AD.all$anno_sub2,AD.all$orig.ident)
+AD.all <- SetIdent(AD.all,value = "DEG_group")
+
+all.DEG <- NA
+plist <- list()
+FC_line <- 0.5
+for (i in unique(AD.all$anno_sub2)[c(1,2,4,5)]) {
+  DEG <- FindMarkers(AD.all,ident.1 = paste(i,"AD"),ident.2 = paste(i,"Normal"),only.pos = F,
+                     min.pct = 0.5,logfc.threshold = FC_line,features = intersect.gene,assay = "RNA")
+  DEG <- DEG[which(DEG$p_val_adj < 0.05),]
+  DEG$CellType <- i
+  DEG$gene <- rownames(DEG)
+  DEG$change <- ifelse(DEG$avg_log2FC >0, "AD_highExp", "Normal_highExp")
+  
+  genes <- c(head(DEG$gene[order(DEG$avg_log2FC,decreasing = T)],10),tail(DEG$gene[order(DEG$avg_log2FC,decreasing = T)],10))
+  intersect(AD.risk$V1,DEG$gene)
+  DEG$text <- NA
+  DEG$text[which(DEG$gene %in% genes)] <- DEG$gene[which(DEG$gene %in% genes)]
+  
+  plist[[i]] <- ggplot(DEG,aes(x = avg_log2FC, y = -log10(p_val_adj),color = change,label = change))+ 
+    geom_point(alpha=0.4, size=3.5)+ggtitle(i)+
+    geom_hline(yintercept = 1.3, linetype = 4)+
+    geom_vline(xintercept = c(-FC_line, FC_line), linetype = 4)+
+    geom_label_repel(aes(label=text), fontface="bold", color="grey50", box.padding=unit(0.35, "lines"),max.overlaps = 20)+
+    theme_bw()+theme(panel.grid = element_blank())
+  
+  all.DEG <- rbind(all.DEG,DEG)
+}
+library(patchwork)
+pdf("FourCelltype_DEG.pdf",height = 10,width = 23)
+wrap_plots(plist,ncol = 2)
+dev.off()
+
+all.DEG <- all.DEG[-1,]
+write.table(all.DEG,"DEG_AD_Ctrl.txt",quote = F,sep = "\t",row.names = F,col.names = T)
+
+AD.risk <- na.omit(AD.risk)
+plist2 <- list()
+
+black_gene <- read.table("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/WGCNA_AD_Ctrl/module all genes/black module genes.txt")
+
+for (i in unique(all.DEG$CellType)) {
+  g1 <- all.DEG$gene[which(all.DEG$CellType == i)]
+  x <- list(DEG=g1, AD.risk=AD.risk$V1,black_module = black_gene$V1)
+#  pdf(paste(i,"venn.pdf"),height = 5,width = 5)
+  p <- ggVennDiagram(x,edge_size = 0) + scale_fill_gradient(low=colors()[616],high = colors()[38])+
+    ggtitle(i)+theme(plot.title = element_text(hjust = 0.5))
+#  print(p)
+#  dev.off()
+  plist2[[i]] <- p
+}
+intersect(g1,AD.risk$V1)
+library(VennDiagram)
+pdf("four Venn plot.pdf",height = 6,width = 8)
+wrap_plots(plist2,ncol = 2)
+dev.off()
+        

@@ -1,0 +1,192 @@
+library(Seurat)
+library(SeuratObject)
+setwd('/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_PFC_AD/rds')
+
+AD3.MAP2 <- Read10X_h5("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_PFC_AD/GSE129308_RAW/GSM3704361_3-MAP2_filtered_feature_bc_matrix.h5") 
+AD4.MAP2 <- Read10X_h5("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_PFC_AD/GSE129308_RAW/GSM3704363_4-MAP2_filtered_feature_bc_matrix.h5") 
+AD8.MAP2 <- Read10X_h5("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_PFC_AD/GSE129308_RAW/GSM3704371_8-MAP2_filtered_feature_bc_matrix.h5") 
+
+AD3.AT8 <- Read10X_h5("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_PFC_AD/GSE129308_RAW/GSM3704362_3-AT8_filtered_feature_bc_matrix.h5") 
+AD4.AT8<- Read10X_h5("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_PFC_AD/GSE129308_RAW/GSM3704364_4-AT8_filtered_feature_bc_matrix.h5") 
+AD8.AT8 <- Read10X_h5("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_PFC_AD/GSE129308_RAW/GSM3704372_8-AT8_filtered_feature_bc_matrix.h5") 
+
+dim(AD3.MAP2)
+dim(AD4.MAP2)
+dim(AD8.MAP2)
+dim(AD3.AT8)
+dim(AD4.AT8)
+dim(AD8.AT8)
+
+AD.PFC.list <- list()
+AD.PFC.list[["AD3.MAP2"]] <- CreateSeuratObject(AD3.MAP2)
+AD.PFC.list[["AD4.MAP2"]] <- CreateSeuratObject(AD4.MAP2)
+AD.PFC.list[["AD8.MAP2"]] <- CreateSeuratObject(AD8.MAP2)
+AD.PFC.list[["AD3.AT8"]] <- CreateSeuratObject(AD3.AT8)
+AD.PFC.list[["AD4.AT8"]] <- CreateSeuratObject(AD4.AT8)
+AD.PFC.list[["AD8.AT8"]] <- CreateSeuratObject(AD8.AT8)
+
+AD.PFC.list <- lapply(X = AD.PFC.list, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+# select features that are repeatedly variable across datasets for integration run PCA on each
+# dataset using these features
+features <- SelectIntegrationFeatures(object.list = AD.PFC.list)
+AD.PFC.list <- lapply(X = AD.PFC.list, FUN = function(x) {
+  x <- ScaleData(x, features = features, verbose = FALSE)
+  x <- RunPCA(x, features = features, verbose = FALSE)
+})
+immune.anchors <- FindIntegrationAnchors(object.list = AD.PFC.list, anchor.features = features, reduction = "rpca")
+AD.PFC.male <- IntegrateData(anchorset = immune.anchors)
+# specify that we will perform downstream analysis on the corrected data note that the
+# original unmodified data still resides in the 'RNA' assay
+DefaultAssay(AD.PFC.male) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+AD.PFC.male <- ScaleData(AD.PFC.male, verbose = FALSE)
+AD.PFC.male <- RunPCA(AD.PFC.male, npcs = 30, verbose = FALSE)
+AD.PFC.male <- RunUMAP(AD.PFC.male, reduction = "pca", dims = 1:30,return.model = T)
+AD.PFC.male <- RunTSNE(AD.PFC.male, reduction = "pca", dims = 1:30,)
+AD.PFC.male <- FindNeighbors(AD.PFC.male, reduction = "pca", dims = 1:30)
+AD.PFC.male <- FindClusters(AD.PFC.male, resolution = 0.5)
+AD.PFC.male <- FindClusters(AD.PFC.male, resolution = 1)
+
+pdf("cluster AD male PFC.pdf",height = 8,width = 8)
+DimPlot(AD.PFC.male,label = T,reduction = "tsne")+NoLegend()
+dev.off()
+
+pdf("major cell types markers in all data.pdf",height = 8,width = 20)
+DotPlot(AD.PFC.male,features = c("PDGFRA","CSPG4","OLIG1","COL9A1","SEMA5A","TNR","OLIG2",
+                                    "MBP","MOG","PLP1",
+                                    "PTPRC","P2RY12","C1QA","C1QB","C1QC","CTSS",
+                                    "RELN","GAD1","GAD2","NXPH1","LHX6","SST","VIP","PVALB","MSI2",
+                                    "SLC17A7","SATB2","RBFOX1","NRGN","SNAP25","CALM1","SYT1",
+                                    "FLT1","EPAS1","SLC7A1","EBF1",
+                                    "AQP4","GJB6","GFAP","MLC1"
+),assay = "RNA")+theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+## Exc
+## Cluster 1,2,4,7,8,10,12,17,19,22,24,25,19,30,36,27,38,43,44,45 are Exc
+Exc.cell <- c(0:3,5,7:13,15,16,19:21)
+
+## Inc
+## cluster 7 9 11 17 18 23 27 are Inc
+Inc.cell <- c(4,6,14,18,22)
+
+## Ast 
+## cluster 4 24 29 are Ast
+Ast.cell <- c(17)
+
+## Oligodendrocyte and OPC
+## cluster 5 30 are OPC, and cluster 0 25 are Oligo
+OPC.cell <- c(24)
+OLI.cell <- c(23)
+
+####
+all.cell <- c(Ast.cell,Exc.cell,Inc.cell,OLI.cell,OPC.cell)
+table(all.cell)
+
+##
+new.ident <- AD.PFC.male$integrated_snn_res.1
+new.ident <- as.character(new.ident)
+new.ident[which(new.ident %in% Ast.cell)] <- "Ast"
+new.ident[which(new.ident %in% Exc.cell)] <- "Exc"
+new.ident[which(new.ident %in% Inc.cell)] <- "Inc"
+new.ident[which(new.ident %in% OLI.cell)] <- "Oligo"
+new.ident[which(new.ident %in% OPC.cell)] <- "OPC"
+unique(new.ident)
+
+AD.PFC.male$anno_BySelf <- new.ident
+pdf("celltype AD male PFC.pdf",height = 8,width = 8)
+DimPlot(AD.PFC.male,label = T,reduction = "tsne",group.by = "anno_BySelf")+NoLegend()
+dev.off()
+saveRDS(AD.PFC.male,file = "AD_PFC_male.rds")
+
+
+#####
+library(Seurat)
+AD.PFC.male <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/human_PFC_AD/rds/AD_PFC_male.rds")
+AD.PFC.male <- SetIdent(AD.PFC.male,value = "anno_BySelf")
+AD_Inc <- subset(AD.PFC.male,idents = "Inc")
+
+Inc.Ctrl <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_human/Inc_subtype/Inc.combined(deDoublet).rds") 
+Inc.Ctrl <- RunUMAP(Inc.Ctrl,reduction = "pca", dims = 1:30,return.model = T )
+DimPlot(object = Inc.Ctrl, reduction = "tsne", group.by = "anno_sub", label = TRUE, label.size = 3, repel = TRUE) + NoLegend()
+DimPlot(object = AD_Inc, reduction = "tsne",label = TRUE, label.size = 3, repel = TRUE) + NoLegend()
+
+DefaultAssay(Inc.Ctrl) <- "integrated"
+DefaultAssay(AD_Inc) <- "integrated"
+
+anchors <- FindTransferAnchors(
+  reference = Inc.Ctrl,
+  query = AD_Inc,
+  normalization.method = "LogNormalize",
+  reference.reduction = "pca",
+  dims = 1:20
+)
+
+AD_Inc <- MapQuery(
+  anchorset = anchors,
+  query = AD_Inc,
+  reference = Inc.Ctrl,
+  refdata = list(
+    anno_sub = "anno_sub"
+  ),
+  reference.reduction = "pca", 
+  reduction.model = "umap"
+)
+AD_Inc$integrated_snn_res.0.5
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_ADPFC")
+pdf("AD_PFC_annoByHuman.pdf",width = 8,height = 8)
+DimPlot(AD_Inc,reduction = "tsne",group.by = "predicted.anno_sub",label = T)+NoLegend()
+dev.off()
+
+Inc.sub.markers <- c("GAD1","GAD2",
+                     "VIP","SYT6","TSPAN12","CHRNA6","ADAMTSL1","PENK","QPCT","HS3ST3A1","PCDH20","SERPINF1","TYR","CHRM2","CBLN1","CCDC184","GGH","LBH","CASC6","SPAG17","OPRM1","TAC3","CALB2",
+                     "SST","CHRNA4","BAGE2","NPY","HPGD","B3GAT2","KLHDC8A","NPM1P10","GXYLT2","STK32A","CALB1","ADGRG6","FRZB","TH","MIR548F2","NMU","CRHBP","CUX2",
+                     "PVALB","LGR5","MEPE","WFDC2","SULF1","SCUBE3",
+                     "PAX6","CDH12","TNFAIP8L3",
+                     "LHX6","GLP1R",
+                     "LAMP5","NMBR","LCP2","DBP","CA1",
+                     "ADARB2","MC4R")
+DefaultAssay(AD_Inc) <- "integrated"
+AD_Inc <- FindNeighbors(AD_Inc, reduction = "pca", dims = 1:30)
+AD_Inc <- FindClusters(AD_Inc, resolution = 1.5)
+
+DefaultAssay(AD_Inc) <- "RNA"
+
+pdf("main markers dotplot.pdf",height = 4.5,width = 20)
+DotPlot(AD_Inc,features = Inc.sub.markers,assay = "RNA",group.by = "predicted.anno_sub")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+pdf("main markers dotplot by cluster.pdf",height = 4.5,width = 20)
+DotPlot(AD_Inc,features = Inc.sub.markers,assay = "RNA",group.by = "integrated_snn_res.1")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+AD_Inc$anno_sub <- as.character(AD_Inc$integrated_snn_res.1)
+AD_Inc$anno_sub[which(AD_Inc$integrated_snn_res.1 %in% c(0,5,8,9))] <- "Inc PVALB"
+AD_Inc$anno_sub[which(AD_Inc$integrated_snn_res.1 %in% c(1,3,7))] <- "Inc VIP"
+AD_Inc$anno_sub[which(AD_Inc$integrated_snn_res.1 %in% c(6))] <- "Inc SST"
+AD_Inc$anno_sub[which(AD_Inc$integrated_snn_res.1 %in% c(2))] <- "Inc LAMP5"
+AD_Inc$anno_sub[which(AD_Inc$integrated_snn_res.1 %in% c(4,10))] <- "Inc unknown"
+unique(AD_Inc$anno_sub)
+
+pdf("AD_PFC_annoByMarker.pdf",width = 8,height = 8)
+DimPlot(AD_Inc,reduction = "tsne",group.by = "anno_sub",label = T)+NoLegend()
+dev.off()
+
+pdf("main markers dotplot by anno_sub.pdf",height = 4.5,width = 20)
+DotPlot(AD_Inc,features = Inc.sub.markers,assay = "RNA",group.by = "anno_sub")+
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1))
+dev.off()
+
+saveRDS(AD_Inc,file = "AD_PFC_Inc_integrate.rds")
+dim(AD_Inc)
+
+
+
+

@@ -1,0 +1,49 @@
+## we used aertslab_pyscenic.0.11.2.sif to run pySCENIC
+singularity run aertslab_pyscenic.0.11.2.sif pyscenic grn --num_workers 15 -o expr_mat.adjacencies.tsv IncAll_counts_mat.csv allTFs_hg38.txt
+singularity run aertslab_pyscenic.0.11.2.sif pyscenic ctx expr_mat.adjacencies.tsv hg38__refseq-r80__500bp_up_and_100bp_down_tss.mc9nr.feather hg38__refseq-r80__10kb_up_and_down_tss.mc9nr.feather --annotations_fname motifs.tbl --expression_mtx_fname IncAll_counts_mat.csv --mode "dask_multiprocessing" --output regulons.csv --num_workers 15
+singularity run aertslab_pyscenic.0.11.2.sif pyscenic aucell IncAll_counts_mat.csv regulons.csv -o auc_mtx.csv --num_workers 15
+
+## binarize using some tools of python 
+# import dependencies
+import os
+import numpy as np
+import pandas as pd
+#import scanpy as sc
+import loompy as lp
+#from MulticoreTSNE import MulticoreTSNE as TSNE
+import json
+import base64
+import zlib
+from pyscenic.plotting import plot_binarization
+from pyscenic.export import add_scenic_metadata
+from pyscenic.cli.utils import load_signatures
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+#from scanpy.plotting._tools.scatterplots import plot_scatter
+import seaborn as sns
+
+auc_mtx = pd.read_csv("auc_mtx.csv",index_col=0)
+cellAnno = pd.read_csv("Inc_all_meta.csv",index_col=0)
+
+from pyscenic.rss import regulon_specificity_scores
+from pyscenic.plotting import plot_rss
+import matplotlib.pyplot as plt
+from adjustText import adjust_text
+import seaborn as sns
+from pyscenic.binarization import binarize
+
+cellAnno2 = cellAnno.loc[auc_mtx.index,]
+cellAnno2.head()
+
+rss_cellType = regulon_specificity_scores( auc_mtx, cellAnno2['anno_sub2'] )
+rss_cellType
+
+rss_cellType.to_csv("auc_rss_Inc_bySpecies&Celltype.csv")
+
+binary_mtx, auc_thresholds = binarize( auc_mtx, num_workers=25 )
+binary_mtx.head()
+
+binary_mtx.to_csv("Inc_All_auc_binary.csv")
+
+## using R to visualize
+

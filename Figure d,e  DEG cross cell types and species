@@ -124,3 +124,49 @@ all.da2 <- ScaleData(all.da2, features = gene.union)
 pdf("top20 group heatmap.pdf",height = 12,width = 12)
 DoHeatmap(all.da2, features = top20$gene) + NoLegend()
 dev.off()
+
+## Figure e
+mat <- all.da2@assays$RNA@scale.data
+meta <- all.da2@meta.data[,c("orig.ident","group")]
+unique(meta$orig.ident)
+meta$orig.ident[grep("Human",meta$orig.ident)] <- "Human"
+meta$orig.ident[grep("Mouse",meta$orig.ident)] <- "Mouse"
+meta$orig.ident[grep("Pig",meta$orig.ident)] <- "Pig"
+meta$orig.ident[grep("Macaque",meta$orig.ident)] <- "Macaque"
+
+
+###
+Idents(all.da2)
+plist <- list()
+all.markers <- NA
+for (i in unique(all.da2$group)) {
+  sub.da <- subset(all.da2,idents = i)
+  sub.da$orig.ident[grep("Human",sub.da$orig.ident)] <- "Human"
+  sub.da$orig.ident[grep("Mouse",sub.da$orig.ident)] <- "Mouse"
+  sub.da$orig.ident[grep("Pig",sub.da$orig.ident)] <- "Pig"
+  sub.da$orig.ident[grep("Macaque",sub.da$orig.ident)] <- "Macaque"
+  unique(sub.da$orig.ident)
+  sub.da <- SetIdent(sub.da,value = "orig.ident")
+  
+  sub.markers <- FindAllMarkers(sub.da,only.pos = T,min.pct = 0.25,logfc.threshold = 0.25,features = gene.share)
+  sub.markers <- sub.markers[which(sub.markers$p_val_adj < 0.05),]
+  sub.markers$group <- i
+  all.markers <- rbind(all.markers,sub.markers)
+  sub.markers2 <- sub.markers[which(sub.markers$pct.2 < 0.3),]
+  table(sub.markers2$cluster)
+  sub.markers2 %>%
+    group_by(cluster) %>%
+    top_n(n = 10, wt = avg_log2FC) -> sub_top10
+  sub.da <- ScaleData(sub.da, features = gene.share)
+  
+  plist[[i]] <-   DotPlot(sub.da,features = unique(sub_top10$gene))+ylab(i)+
+    theme(axis.text.x = element_text(angle = 45,hjust = 1,vjust = 1),axis.title.x = element_blank())
+}
+all.markers <- all.markers[-1,]
+unique(all.markers$group)
+
+wrap_plots(plist,ncol = 2)
+
+pdf("four groups split by species(top10).pdf",height = 11,width = 23)
+wrap_plots(plist,ncol = 2)
+dev.off()

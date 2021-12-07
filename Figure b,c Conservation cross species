@@ -1,0 +1,427 @@
+## human to mouse
+library(Seurat)
+library(ComplexHeatmap)
+library(circlize)
+## load human and mouse Inc data and resampling ####
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&mouse")
+human.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_human/Inc_subtype/Inc.combined(deDoublet).rds")
+mouse.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_mouse/Inc_subtype/Inc_integrate_mouse.rds")
+table(human.combined$anno_sub)
+table(mouse.combined$anno_sub)
+
+
+all_cell <- human.combined$anno_sub
+id1 <- c()
+for (i in unique(all_cell)) {
+  s_cell <- names(all_cell)[which(all_cell == i)]
+  #select 50 cells from each cluster
+  if(length(s_cell) > 100){
+    set.seed(123)
+    s_cell <- s_cell[sample(1:length(s_cell),100)]
+  }
+  id1 <- c(id1,s_cell)
+}
+
+resample_human <- subset(human.combined,cells = id1)
+pdf("human select cells tsne.pdf",height = 8,width = 8.8)
+DimPlot(resample_human,reduction = "tsne",group.by = "anno_sub",label = T)+NoLegend()
+dev.off()
+saveRDS(resample_human,file = "human_100_eachCluster.rds")
+
+all_cell <- mouse.combined$anno_sub
+id1 <- c()
+for (i in unique(all_cell)) {
+  s_cell <- names(all_cell)[which(all_cell == i)]
+  #select 50 cells from each cluster
+  if(length(s_cell) > 100){
+    set.seed(123)
+    s_cell <- s_cell[sample(1:length(s_cell),100)]
+  }
+  id1 <- c(id1,s_cell)
+}
+resample_mouse <- subset(mouse.combined,cells = id1)
+pdf("mouse select cells tsne.pdf",height = 8,width = 8.8)
+DimPlot(resample_mouse,reduction = "tsne",group.by = "anno_sub",label = T)+NoLegend()
+dev.off()
+saveRDS(resample_mouse,file = "mouse_100_eachCluster.rds")
+
+### resample data analysis ####
+resample_human <- readRDS("human_100_eachCluster.rds")
+resample_mouse <- readRDS("mouse_100_eachCluster.rds")
+
+mouse.meta <- resample_mouse@meta.data
+mouse.combined.GeneTrans <- as.matrix(resample_mouse@assays$RNA@counts)
+id.tb <- read.table("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/mouse/Mouse2Human.txt",header = T,sep = "\t")
+colnames(id.tb)<-c(paste("cn",1:5,sep=""))
+id.tb<-id.tb[which(id.tb$cn5=="ortholog_one2one"),]
+old_features<-rownames(mouse.combined.GeneTrans)
+m2h <- id.tb$cn4
+names(m2h) <- id.tb$cn2
+m2h[m2h == ""] <- NA
+new_features <- c()
+for (old_name in old_features) {
+  if(!is.na(m2h[old_name])){
+    new_features <- c(new_features,m2h[old_name])
+  }else {new_features <- c(new_features,paste("no_exist",old_name,sep = "_"))}
+}
+rownames(mouse.combined.GeneTrans) <- as.character(new_features)
+mouse.combined.GeneTrans <- mouse.combined.GeneTrans[-grep("^no_exist",rownames(mouse.combined.GeneTrans)),]
+
+new.resample.mouse <- CreateSeuratObject(mouse.combined.GeneTrans)
+new.resample.mouse <- AddMetaData(new.resample.mouse,metadata = mouse.meta)
+all.resample <- merge(resample_human,new.resample.mouse)
+table(all.resample$orig.ident)
+all.resample$sample2 <- all.resample$sample
+all.resample$sample2[grep("BA",all.resample$sample2)] <- "BA_batch"
+all.resample$sample2[grep("_PFC",all.resample$sample2)] <- "PFC_batch1"
+all.resample$sample2[grep("DFC",all.resample$sample2)] <- "DFC_batch"
+all.resample$sample2[grep("Month",all.resample$sample2)] <- "CTX_batch"
+all.resample$sample2[grep("^PFCS",all.resample$sample2)] <- "PFC_batch2"
+table(all.resample$sample2)
+
+conser.obj <- SplitObject(all.resample,split.by = "sample2")
+
+conser.obj <- lapply(X = conser.obj, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+features <- SelectIntegrationFeatures(object.list = conser.obj)
+conser.obj <- lapply(X = conser.obj, FUN = function(x) {
+  x <- ScaleData(x, features = features, verbose = FALSE)
+  x <- RunPCA(x, features = features, verbose = FALSE)
+})
+species.anchors <- FindIntegrationAnchors(object.list = conser.obj, anchor.features = features, reduction = "rpca")
+conser.h2m <- IntegrateData(anchorset = species.anchors)
+DefaultAssay(conser.h2m) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+conser.h2m <- ScaleData(conser.h2m, verbose = FALSE)
+conser.h2m <- RunPCA(conser.h2m, npcs = 30, verbose = FALSE)
+conser.h2m <- RunUMAP(conser.h2m, reduction = "pca", dims = 1:30)
+conser.h2m <- RunTSNE(conser.h2m, reduction = "pca", dims = 1:30)
+conser.h2m <- FindNeighbors(conser.h2m, reduction = "pca", dims = 1:30)
+conser.h2m <- FindClusters(conser.h2m, resolution = 0.5)
+conser.h2m <- FindClusters(conser.h2m, resolution = 1)
+conser.h2m <- FindClusters(conser.h2m, resolution = 1.5)
+conser.h2m <- FindClusters(conser.h2m, resolution = 2)
+
+p1 <- DimPlot(conser.h2m, reduction = "tsne", group.by = "orig.ident")
+pdf("human&mouse_Inc_conservation.pdf",height = 8,width = 10)
+print(p1)
+dev.off()
+
+DimPlot(conser.h2m, reduction = "tsne", group.by = "sample2")
+
+p2 <- DimPlot(conser.h2m, reduction = "tsne", label = TRUE, repel = TRUE)
+pdf("human&mouse_Inc_cluster.pdf",height = 6,width = 7)
+print(p2)
+dev.off()
+conser_mtr <- matrix(0,ncol = length(unique(resample_human$anno_sub)),nrow = length(unique(resample_mouse$anno_sub)))
+rownames(conser_mtr) <- sort(unique(resample_mouse$anno_sub))
+colnames(conser_mtr) <- sort(unique(resample_human$anno_sub))
+
+for (i in rownames(conser_mtr)) {
+  for (j in colnames(conser_mtr)) {
+    a <- conser.h2m$integrated_snn_res.2[which(conser.h2m$anno_sub == i)]
+    b <- conser.h2m$integrated_snn_res.2[which(conser.h2m$anno_sub == j)]
+    a <- as.character(a)
+    b <- as.character(b)
+    int <- intersect(unique(a),unique(b))
+    if(length(int) > 0){
+#      n = min(length(which(a %in% int)),length(which(b %in% int)))
+#      conser_mtr[i,j] <- n/min(length(which(conser.h2m$anno_sub == i)),length(which(conser.h2m$anno_sub == j)))
+      conser_mtr[i,j] <- min(length(which(a %in% int))/length(which(conser.h2m$anno_sub == i)),length(which(b %in% int))/length(which(conser.h2m$anno_sub == j)))
+    }
+  }
+}
+
+pdf("Heatmap_human&mouse_conservation.pdf",height = 5,width = 9)
+Heatmap(conser_mtr,col = colorRamp2(c(0,0.8,1), c("white", "grey", "black")),
+        cluster_rows = T,cluster_columns = T,heatmap_width = unit(1, "npc"),
+        heatmap_height = unit(1,"npc"),width = 1,height = 1,row_title = "mouse",
+        column_title = "human",name = "Cluster overlap",
+        border = T#,column_split = col_split,row_split = row_split
+)
+dev.off()
+
+saveRDS(conser.h2m,file = "conservation_each100_human&mouse.rds")
+
+## human to macaque
+library(Seurat)
+library(ComplexHeatmap)
+library(circlize)
+##
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&macaque")
+human.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_human/Inc_subtype/Inc.combined(deDoublet).rds")
+macaque.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_macaque/Inc_subtype/Inc_integrate_macaque.rds")
+table(human.combined$anno_sub)
+table(macaque.combined$anno_sub)
+
+all_cell <- human.combined$anno_sub
+id1 <- c()
+for (i in unique(all_cell)) {
+  s_cell <- names(all_cell)[which(all_cell == i)]
+  #select 50 cells from each cluster
+  if(length(s_cell) > 100){
+    set.seed(123)
+    s_cell <- s_cell[sample(1:length(s_cell),100)]
+  }
+  id1 <- c(id1,s_cell)
+}
+
+resample_human <- subset(human.combined,cells = id1)
+pdf("human select cells tsne.pdf",height = 8,width = 8.8)
+DimPlot(resample_human,reduction = "tsne",group.by = "anno_sub",label = T)+NoLegend()
+dev.off()
+saveRDS(resample_human,file = "human_100_eachCluster.rds")
+resample_human <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&mouse/human_100_eachCluster.rds")
+
+all_cell <- macaque.combined$anno_sub
+id1 <- c()
+for (i in unique(all_cell)) {
+  s_cell <- names(all_cell)[which(all_cell == i)]
+  #select 50 cells from each cluster
+  if(length(s_cell) > 100){
+    set.seed(123)
+    s_cell <- s_cell[sample(1:length(s_cell),100)]
+  }
+  id1 <- c(id1,s_cell)
+}
+resample_macaque <- subset(macaque.combined,cells = id1)
+pdf("macaque select cells tsne.pdf",height = 8,width = 8.8)
+DimPlot(resample_macaque,reduction = "tsne",group.by = "anno_sub",label = T)+NoLegend()
+dev.off()
+saveRDS(resample_macaque,file = "macaque_100_eachCluster.rds")
+
+macaque.meta <- resample_macaque@meta.data
+macaque.combined.GeneTrans <- as.matrix(resample_macaque@assays$RNA@counts)
+
+macaque.combined.GeneTrans <- macaque.combined.GeneTrans[-grep("^ENSMMU",rownames(macaque.combined.GeneTrans)),]
+
+new.resample.macaque <- CreateSeuratObject(macaque.combined.GeneTrans)
+new.resample.macaque <- AddMetaData(new.resample.macaque,metadata = macaque.meta)
+all.resample <- merge(resample_human,new.resample.macaque)
+table(all.resample$orig.ident)
+all.resample$sample2 <- all.resample$sample
+unique(all.resample$sample2)
+all.resample$sample2[grep("BA",all.resample$sample2)] <- "BA_batch"
+all.resample$sample2[grep("_PFC",all.resample$sample2)] <- "PFC_batch1"
+all.resample$sample2[grep("HSB",all.resample$sample2)] <- "DFC_batch1"
+all.resample$sample2[grep("RMB",all.resample$sample2)] <- "DFC_batch2"
+all.resample$sample2[grep("Month",all.resample$sample2)] <- "CTX_batch"
+all.resample$sample2[grep("^PFCS",all.resample$sample2)] <- "PFC_batch2"
+table(all.resample$sample2)
+
+conser.obj <- SplitObject(all.resample,split.by = "sample2")
+
+conser.obj <- lapply(X = conser.obj, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+features <- SelectIntegrationFeatures(object.list = conser.obj)
+conser.obj <- lapply(X = conser.obj, FUN = function(x) {
+  x <- ScaleData(x, features = features, verbose = FALSE)
+  x <- RunPCA(x, features = features, verbose = FALSE)
+})
+species.anchors <- FindIntegrationAnchors(object.list = conser.obj, anchor.features = features, reduction = "rpca")
+conser.h2m <- IntegrateData(anchorset = species.anchors)
+DefaultAssay(conser.h2m) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+conser.h2m <- ScaleData(conser.h2m, verbose = FALSE)
+conser.h2m <- RunPCA(conser.h2m, npcs = 30, verbose = FALSE)
+conser.h2m <- RunUMAP(conser.h2m, reduction = "pca", dims = 1:30)
+conser.h2m <- RunTSNE(conser.h2m, reduction = "pca", dims = 1:30)
+conser.h2m <- FindNeighbors(conser.h2m, reduction = "pca", dims = 1:30)
+conser.h2m <- FindClusters(conser.h2m, resolution = 0.5)
+conser.h2m <- FindClusters(conser.h2m, resolution = 1)
+conser.h2m <- FindClusters(conser.h2m, resolution = 1.5)
+
+p1 <- DimPlot(conser.h2m, reduction = "tsne", group.by = "orig.ident")
+pdf("human&macaque_Inc_conservation.pdf",height = 8,width = 10)
+print(p1)
+dev.off()
+
+DimPlot(conser.h2m, reduction = "tsne", group.by = "sample2")
+
+p2 <- DimPlot(conser.h2m, reduction = "tsne", label = TRUE, repel = TRUE)
+pdf("human&macaque_Inc_cluster.pdf",height = 6,width = 7)
+print(p2)
+dev.off()
+
+conser_mtr <- matrix(0,ncol = length(unique(resample_human$anno_sub)),nrow = length(unique(resample_macaque$anno_sub)))
+rownames(conser_mtr) <- sort(unique(resample_macaque$anno_sub))
+colnames(conser_mtr) <- sort(unique(resample_human$anno_sub))
+
+for (i in rownames(conser_mtr)) {
+  for (j in colnames(conser_mtr)) {
+    a <- conser.h2m$integrated_snn_res.1.5[intersect(which(conser.h2m$anno_sub == i),grep("Macaque",conser.h2m$orig.ident))]
+    b <- conser.h2m$integrated_snn_res.1.5[intersect(which(conser.h2m$anno_sub == j),grep("Human",conser.h2m$orig.ident))]
+    a <- as.character(a)
+    b <- as.character(b)
+    int <- intersect(unique(a),unique(b))
+    if(length(int) > 0){
+#      n = min(length(which(a %in% int)),length(which(b %in% int)))
+#      conser_mtr[i,j] <- n/min(length(which(conser.h2m$anno_sub == i)),length(which(conser.h2m$anno_sub == j)))
+      conser_mtr[i,j] <- min(length(which(a %in% int))/length(which(conser.h2m$anno_sub == i)),length(which(b %in% int))/length(which(conser.h2m$anno_sub == j)))
+    }
+  }
+}
+
+pdf("Heatmap_human&pig_conservation.pdf",height = 6,width = 9)
+Heatmap(conser_mtr,col = colorRamp2(c(0,0.8,1), c("white", "grey", "black")),
+        cluster_rows = T,cluster_columns = T,heatmap_width = unit(1, "npc"),
+        heatmap_height = unit(1,"npc"),width = 1,height = 1,row_title = "macaque",
+        column_title = "human",name = "Cluster overlap",
+        border = T#,column_split = col_split,row_split = row_split
+)
+dev.off()
+
+saveRDS(conser.h2m,file = "conservation_each100_human&macaque.rds")
+
+## human to pig
+library(Seurat)
+library(ComplexHeatmap)
+library(circlize)
+##
+setwd("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&pig/")
+human.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_human/Inc_subtype/Inc.combined(deDoublet).rds")
+pig.combined <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/integrate_pig/Inc_subtype/Inc.combined(deNotGABA).rds")
+table(human.combined$anno_sub)
+table(pig.combined$anno_sub)
+
+all_cell <- human.combined$anno_sub
+id1 <- c()
+for (i in unique(all_cell)) {
+  s_cell <- names(all_cell)[which(all_cell == i)]
+  #select 50 cells from each cluster
+  if(length(s_cell) > 100){
+    set.seed(123)
+    s_cell <- s_cell[sample(1:length(s_cell),100)]
+  }
+  id1 <- c(id1,s_cell)
+}
+
+resample_human <- subset(human.combined,cells = id1)
+pdf("human select cells tsne.pdf",height = 8,width = 8.8)
+DimPlot(resample_human,reduction = "tsne",group.by = "anno_sub",label = T)+NoLegend()
+dev.off()
+saveRDS(resample_human,file = "human_100_eachCluster.rds")
+resample_human <- readRDS("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/result/conservation/human&pig/human_100_eachCluster.rds")
+
+all_cell <- pig.combined$anno_sub
+id1 <- c()
+for (i in unique(all_cell)) {
+  s_cell <- names(all_cell)[which(all_cell == i)]
+  #select 50 cells from each cluster
+  if(length(s_cell) > 100){
+    set.seed(123)
+    s_cell <- s_cell[sample(1:length(s_cell),100)]
+  }
+  id1 <- c(id1,s_cell)
+}
+resample_pig <- subset(pig.combined,cells = id1)
+pdf("pig select cells tsne.pdf",height = 8,width = 8.8)
+DimPlot(resample_pig,reduction = "tsne",group.by = "anno_sub",label = T)+NoLegend()
+dev.off()
+saveRDS(resample_pig,file = "pig_100_eachCluster.rds")
+
+pig.meta <- resample_pig@meta.data
+pig.combined.GeneTrans <- as.matrix(resample_pig@assays$RNA@counts)
+id.tb <- read.table("/Users/wangshiyou/Documents/work/BGI/program/毕业吧/公共数据挖掘文章设计/data/pig/pig_human_id_trans.txt",header = T,sep = "\t")
+colnames(id.tb)<-c(paste("cn",1:5,sep=""))
+id.tb<-id.tb[which(id.tb$cn5=="ortholog_one2one"),]
+old_features<-rownames(pig.combined.GeneTrans)
+m2h <- id.tb$cn4
+names(m2h) <- id.tb$cn2
+m2h[m2h == ""] <- NA
+new_features <- c()
+for (old_name in old_features) {
+  if(!is.na(m2h[old_name])){
+    new_features <- c(new_features,m2h[old_name])
+  }else {new_features <- c(new_features,paste("no_exist",old_name,sep = "_"))}
+}
+rownames(pig.combined.GeneTrans) <- as.character(new_features)
+pig.combined.GeneTrans <- pig.combined.GeneTrans[-grep("^no_exist",rownames(pig.combined.GeneTrans)),]
+
+new.resample.pig <- CreateSeuratObject(pig.combined.GeneTrans)
+new.resample.pig <- AddMetaData(new.resample.pig,metadata = pig.meta)
+all.resample <- merge(resample_human,new.resample.pig)
+table(all.resample$orig.ident)
+all.resample$sample2 <- all.resample$sample
+all.resample$sample2[grep("BA",all.resample$sample2)] <- "BA_batch"
+all.resample$sample2[grep("_PFC",all.resample$sample2)] <- "PFC_batch1"
+all.resample$sample2[grep("DFC",all.resample$sample2)] <- "DFC_batch"
+all.resample$sample2[grep("Month",all.resample$sample2)] <- "CTX_batch"
+all.resample$sample2[grep("^PFCS",all.resample$sample2)] <- "PFC_batch2"
+table(all.resample$sample2)
+
+conser.obj <- SplitObject(all.resample,split.by = "sample2")
+
+conser.obj <- lapply(X = conser.obj, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+features <- SelectIntegrationFeatures(object.list = conser.obj)
+conser.obj <- lapply(X = conser.obj, FUN = function(x) {
+  x <- ScaleData(x, features = features, verbose = FALSE)
+  x <- RunPCA(x, features = features, verbose = FALSE)
+})
+species.anchors <- FindIntegrationAnchors(object.list = conser.obj, anchor.features = features, reduction = "rpca")
+conser.h2m <- IntegrateData(anchorset = species.anchors,k.weight = 80)
+DefaultAssay(conser.h2m) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+conser.h2m <- ScaleData(conser.h2m, verbose = FALSE)
+conser.h2m <- RunPCA(conser.h2m, npcs = 30, verbose = FALSE)
+conser.h2m <- RunUMAP(conser.h2m, reduction = "pca", dims = 1:30)
+conser.h2m <- RunTSNE(conser.h2m, reduction = "pca", dims = 1:30)
+conser.h2m <- FindNeighbors(conser.h2m, reduction = "pca", dims = 1:30)
+conser.h2m <- FindClusters(conser.h2m, resolution = 0.5)
+conser.h2m <- FindClusters(conser.h2m, resolution = 1)
+conser.h2m <- FindClusters(conser.h2m, resolution = 1.5)
+conser.h2m <- FindClusters(conser.h2m, resolution = 2)
+
+p1 <- DimPlot(conser.h2m, reduction = "tsne", group.by = "orig.ident")
+pdf("human&pig_Inc_conservation.pdf",height = 8,width = 10)
+print(p1)
+dev.off()
+
+DimPlot(conser.h2m, reduction = "tsne", group.by = "sample2")
+
+p2 <- DimPlot(conser.h2m, reduction = "tsne", label = TRUE, repel = TRUE)
+pdf("human&pig_Inc_cluster.pdf",height = 6,width = 7)
+print(p2)
+dev.off()
+
+conser_mtr <- matrix(0,ncol = length(unique(resample_human$anno_sub)),nrow = length(unique(resample_pig$anno_sub)))
+rownames(conser_mtr) <- sort(unique(resample_pig$anno_sub))
+colnames(conser_mtr) <- sort(unique(resample_human$anno_sub))
+
+for (i in rownames(conser_mtr)) {
+  for (j in colnames(conser_mtr)) {
+    a <- conser.h2m$integrated_snn_res.2[intersect(which(conser.h2m$anno_sub == i),grep("Pig",conser.h2m$orig.ident))]
+    b <- conser.h2m$integrated_snn_res.2[intersect(which(conser.h2m$anno_sub == j),grep("Human",conser.h2m$orig.ident))]
+    a <- as.character(a)
+    b <- as.character(b)
+    int <- intersect(unique(a),unique(b))
+    if(length(int) > 0){
+#      n = min(length(which(a %in% int)),length(which(b %in% int)))
+#      conser_mtr[i,j] <- n/min(length(which(conser.h2m$anno_sub == i)),length(which(conser.h2m$anno_sub == j)))
+      conser_mtr[i,j] <- min(length(which(a %in% int))/length(which(conser.h2m$anno_sub == i)),length(which(b %in% int))/length(which(conser.h2m$anno_sub == j)))
+    }
+  }
+}
+library(ComplexHeatmap)
+library(circlize)
+pdf("Heatmap_human&pig_conservation.pdf",height = 5,width = 9)
+Heatmap(conser_mtr,col = colorRamp2(c(0,0.8,1), c("white", "grey", "black")),
+        cluster_rows = T,cluster_columns = T,heatmap_width = unit(1, "npc"),
+        heatmap_height = unit(1,"npc"),width = 1,height = 1,row_title = "pig",
+        column_title = "human",name = "Cluster overlap",
+        border = T#,column_split = col_split,row_split = row_split
+)
+dev.off()
+
+saveRDS(conser.h2m,file = "conservation_each100_human&pig.rds")
+##
